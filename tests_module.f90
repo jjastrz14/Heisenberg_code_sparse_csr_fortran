@@ -273,9 +273,9 @@ subroutine mmm_csr_test()
         write(*,*)  ' '
         write(*,*) 'Exported CSR format of H not permuted: '
         print *, 'values array: ', values_array_export
-        print *, 'ja_P: ', ja_export
-        print *, 'ia_P; pointerB: ', ia_export_B
-        print *, 'ia_P; pointerE: ', ia_export_E
+        print *, 'ja_H: ', ja_export
+        print *, 'ia_H; pointerB: ', ia_export_B
+        print *, 'ia_H; pointerE: ', ia_export_E
 
 
         !Doing a product of three csr matrices P @ H @ P.T <-SPARSE_OPERATION_NON_TRANSPOSE
@@ -301,11 +301,11 @@ subroutine mmm_csr_test()
         call C_F_POINTER(values    , values_array_export    , [ia_export_E(nrow)-indexing])
         
         write(*,*)  ' '
-        write(*,*) 'Exported CSR format of H not permuted: '
+        write(*,*) 'Exported CSR format of H permuted: '
         print *, 'values array: ', values_array_export
-        print *, 'ja_P: ', ja_export
-        print *, 'ia_P; pointerB: ', ia_export_B
-        print *, 'ia_P; pointerE: ', ia_export_E
+        print *, 'ja_H_permuted: ', ja_export
+        print *, 'ia_H_permuted; pointerB: ', ia_export_B
+        print *, 'ia_H_permuted; pointerE: ', ia_export_E
         
         !   Release internal representation of CSR matrix
         info = mkl_sparse_destroy(p_matrix_csr)
