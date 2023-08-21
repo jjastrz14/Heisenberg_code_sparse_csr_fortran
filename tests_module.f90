@@ -192,7 +192,7 @@ subroutine mmm_csr_test()
         ia_P_E(4) = 5;
 
 
-        ! H matrix
+        ! H matrix symmetric upper triangler to csr3
         allocate(values_array_H(5), ia_H_B(4), ia_H_E(4), ja_H(5))
         ! H matrix
         ! 1 0 1 0
