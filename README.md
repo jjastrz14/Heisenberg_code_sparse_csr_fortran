@@ -18,6 +18,7 @@ List of topics:
 * Calculation of entalgement entropy of the corresponding subsytems
 * Generation of Heisenberg Hamiltonian for CSR3 format for spare matrices
 * Diagonalization of spare matrices by different methods: Lanczos and FEAST
-*
+* Using Sparse BLAS for permuting Hamiltonian
+* 
 
 JJ 2022
