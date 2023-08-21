@@ -4,7 +4,7 @@
 ## Research Project: Twistronics - research on new quantum simulators
 
 ## compilation by ifort: 
-** ifort math_func_module.f90 spin_systems_module.f90 tests_module.f90  main_spin_code.f90 -o heisenberg_main -qopenmp -qmkl=cluster -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -xHost -O3 -static-intel -heap-arrays -integer-size 64 **
+*ifort math_func_module.f90 spin_systems_module.f90 tests_module.f90  main_spin_code.f90 -o heisenberg_main -qopenmp -qmkl=cluster -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -xHost -O3 -static-intel -heap-arrays -integer-size 64*
 
 Field: Magnetism and strongly correlated systems
 
