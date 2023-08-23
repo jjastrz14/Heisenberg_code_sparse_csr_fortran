@@ -11,10 +11,10 @@ module spin_systems
         integer, intent(in) :: N_spin
         double precision :: Sz
         character(len=53), allocatable :: dec2bin(:)
-        double precision, allocatable   :: basis_sz(:), Sz_basis(:)
-        integer :: N_spin_max, i, j, info
+        double precision, allocatable   :: basis_sz(:), Sz_basis(:), Sz_basis_target(:)
+        integer :: N_spin_max, i, j, info, N, target_sz
         integer, allocatable, intent(out) :: indices_Sz_basis_sorted(:)
-        integer, allocatable :: basis(:)
+        integer, allocatable :: basis(:), hash(:)
         logical :: bool
         CHARACTER*1 :: id
         character(len=53)             :: tmp
@@ -93,38 +93,94 @@ module spin_systems
 
         deallocate(Sz_basis)
 
-
     end subroutine H_create_basis_sz
 
 
-    subroutine H_basis_sz_with_target(N_spin, J_spin)
-        !> Returns a binary representation of basis(i) as a string with at least N_spin bits for specified s_z
+    subroutine H_create_basis_sz_with_target(N_spin, hash)
+        !> Returns a binary representation of basis(i) as a string with at least N_spin bits. 
         !> abs(d) < 2^52
         ! dec2bin(d, n)
         use math_functions
         implicit none
 
         integer, intent(in) :: N_spin
-        double precision, intent(in) :: J_spin
+        double precision :: Sz
         character(len=53), allocatable :: dec2bin(:)
-        double precision, allocatable   :: basis_sz(:)
-        integer :: N_spin_max, i, j, N, target_sz
-        integer, allocatable :: basis(:), index_array(:), ia(:), ja(:), values_array(:), hash(:)
+        double precision, allocatable   :: basis_sz(:), Sz_basis(:)
+        integer :: N_spin_max, i, j, info, N, target_sz
+        integer, allocatable, intent(out) ::  hash(:)
+        integer, allocatable :: basis(:)
+        logical :: bool
+        CHARACTER*1 :: id
         character(len=53)             :: tmp
         integer                       :: n_
         character(len=8)              :: f
 
-        do i = 1 , N_spin_max
-            basis(i) = i
+        N_spin_max = 2**N_spin
+
+        allocate (Sz_basis(N_spin_max))
+        allocate (basis(N_spin_max))
+        allocate (dec2bin(N_spin_max))
+        !allocate (index_array(N_spin_max))
+
+        ! only for visualization of the basis by 0 and 1 combinations
+        if (N_spin <= 10) then
+            do i = 1 , N_spin_max
+                basis(i) = i
+            end do
+
+            !now we generate the basis +1/2 -> 0, -1/2 -> 1
+            do i = 1, N_spin_max
+            n_ = min(N_spin, 53)
+            write(f,'(i2)') n_
+                f = '(B' // trim(adjustl(f)) // '.' // trim(adjustl(f)) // ')'
+                write(tmp,f) basis(i) - 1
+                dec2bin(i) = trim(adjustl(tmp))
+            end do
+
+            write(*,*) 'Binary basis: ' 
+            write(*,*) dec2bin
+        end if
+
+        ! Maciek version of basis generation with btest
+        ! we can use e.g. btest function, which returns info if given bit is 0 (false) or 1 (true) 
+        !bool_T/F=btest(number, bit_number)
+        ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2
+        do i = 0 , N_spin_max-1
+            !basis(i) = i !here we want Sz from this i
+            ! write(*,*) 'basis vector i =', i+1
+            Sz = 0.0d0
+            do j=0, N_spin-1
+                bool = btest(i, j) 
+                !write(*,*) j, bool
+
+                if (bool==.FALSE.) then
+                    Sz=Sz+1.0d0/2.0d0
+                elseif (bool==.TRUE.) then
+                    Sz=Sz-1.0d0/2.0d0
+                else
+                    write(*,*) 'something wrong'
+                    error stop
+                end if                
+            end do    
+            Sz_basis(i+1) = Sz
+            ! write(*,*) 'for basis vector i =', i, 'Sz = ', Sz_basis(i+1)
         end do
 
+        write(*,*) 'Summary of Sz basis: '
+        do i=1,N_spin_max
+            write(*,*) Sz_basis(i)
+        end do
+
+        allocate(hash(N_spin_max))
+
         N = 1
-        target_sz = -1
+        target_sz = 0
 
         do i = 1, N_spin_max
-           if (i == target_sz) then
-            basis(i) = i
-            basis(N) = i
+           if (Sz_basis(i) == target_sz) then
+            !Sz_basis_target(i) = i
+            !Sz_basis_target(N) = i
             hash(i) = N  
             N = N + 1
             else 
@@ -132,7 +188,12 @@ module spin_systems
             endif 
         end do 
 
-    end subroutine H_basis_sz_with_target
+        write(*,*) 'Hash:'
+        write(*,*) hash
+
+        deallocate(Sz_basis)
+
+    end subroutine H_create_basis_sz_with_target
 
     subroutine Create_permutation_matrix(N_spin_max, array_index, p_matrix)
         implicit none
@@ -196,12 +257,12 @@ module spin_systems
         integer, allocatable :: ia(:), ja(:), ia_per(:), ja_per(:)
         integer, allocatable, intent(in) :: index_array(:)
 
-        INTEGER :: nCol,nrowsD, ncolsD
-    
-        INTEGER(C_INT) :: indexing
-        TYPE(C_PTR)    :: rowsD_start, rowsD_end, colD_indx, Dvalues
-    
-        INTEGER   , POINTER :: rowsD_start_f(:), rowsD_end_f(:), colD_indx_f(:)
+        integer :: nCol,nrowsD, ncolsD
+        
+        !export from internal sparse to CSR
+        integer(C_INT) :: indexing
+        type(C_PTR)    :: rowsD_start, rowsD_end, colD_indx, Dvalues
+        integer   , POINTER :: rowsD_start_f(:), rowsD_end_f(:), colD_indx_f(:)
         double precision, POINTER :: Dvalues_f(:)
 
         !BLAS types
@@ -236,15 +297,6 @@ module spin_systems
         close(40)
         close(41)
         close(42)
-
-        !write(*,*) 'values array: '
-        !write(*,*) values_array_per
-
-        !write(*,*) 'ia: '
-        !write(*,*) ia_per
-
-        !write(*,*) 'ja: '
-        !write(*,*)  ja_per
 
         !stat = mkl_sparse_d_create_csr(A, indexing, rows, cols, rows_start, rows_end, col_indx, values)
 
@@ -285,22 +337,13 @@ module spin_systems
         close(61)
         close(62)
 
-        !write(*,*) 'values array: '
-        !write(*,*) values_array
-
-        !write(*,*) 'ia: '
-        !write(*,*) ia
-
-        !write(*,*) 'ja: '
-        !write(*,*)  ja
-
         !rewriting H matrix to intel mkl internal csr format
         stat_H_csr = mkl_sparse_d_create_csr(H_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia(1:N_spin_max), ia(2:N_spin_max+1), ja, values_array)
         print *, "stat CSR H matrix create = ", stat_H_csr
 
         descrB%type = SPARSE_MATRIX_TYPE_SYMMETRIC
         descrB%mode = SPARSE_FILL_MODE_UPPER
-        !descrB % DIAG = SPARSE_DIAG_NON_UNIT !this shouldn't be used
+        descrB % DIAG = SPARSE_DIAG_NON_UNIT !this shouldn't be used but it is 
 
         ! Analyze sparse matrix; chose proper kernels and workload balancing strategy
         info = MKL_SPARSE_OPTIMIZE(H_matrix_csr)
@@ -723,6 +766,136 @@ module spin_systems
         close(12)
 
     end subroutine H_XXX_diag
+
+    subroutine H_XXX_diag_with_target_dense(N_spin, J_spin, hash)
+        use omp_lib
+        use mkl_vsl
+        use tests_module
+        implicit none
+
+        integer, intent(in) :: N_spin
+        double precision, intent(in) :: J_spin
+        integer, allocatable, intent(in) :: hash(:)
+        integer :: i, j, ind_i, ind_j, N_spin_max
+        double precision, allocatable :: H_full(:,:)
+        double precision :: norm, H_full_ij, J_spin_number
+ 
+        CHARACTER*1 :: jobz, range, uplo
+        integer :: il, iu, ldz, liwork, lwork, info, m_eig
+        double precision :: vl, vu, abstol
+        double precision, allocatable :: work(:), eigen_vec(:,:)
+        integer, allocatable :: iwork(:), isuppz(:)
+        double precision, allocatable :: w(:)
+        
+        CHARACTER(len=100) :: file_name1, file_name2, file_name3
+        CHARACTER(len=10) :: N_spin_charachter
+
+        ! Write the integer into a string:
+        write(N_spin_charachter, '(i0)') N_spin
+
+        file_name1 = 'H_eigenvals_full_' // trim(adjustl(N_spin_charachter)) // '.dat'
+        file_name2 = 'H_eigenvectors_full_' // trim(adjustl(N_spin_charachter)) // '.dat'
+        file_name3 = 'H_norm_test_ful_' // trim(adjustl(N_spin_charachter)) // '.dat'
+
+        open (unit=10, file= trim(file_name1), recl=512)
+        open (unit=11, file=trim(file_name2), recl=512)
+        open (unit=12, file= trim(file_name3), recl=512)
+        
+        ! open (unit=11, file="H_full.dat", recl=512)
+        ! lets rewrite our matlab code
+        ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
+    
+        call omp_mkl_small_test()
+        
+        N_spin_max = 2**N_spin
+        write(*,*) 'be carefull about N_spin_max max size'
+        write(*,*) 'test for N_spin_max', N_spin_max
+        
+        allocate( H_full(N_spin_max, N_spin_max))
+
+        J_spin_number = J_spin
+        H_full = 0.0d0
+
+        !!! H_full filling
+        write(*,*) 'H_full: '
+          
+        ! !$OMP PARALLEL DO
+        do ind_i = 1, N_spin_max
+            do ind_j = 1, N_spin_max
+
+                if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
+                    call H_XXX_filling(N_spin, J_spin, hash(ind_i), hash(ind_j), H_full_ij)
+                endif
+
+                H_full(ind_i,ind_j) = H_full_ij
+                ! write(11,*) ind_i, ind_j, H_full(ind_i,ind_j)
+            end do
+        end do
+        ! !$OMP END PARALLEL DO
+
+        write(*,*) 'H matrix for target 0 '
+        do i = 1, N_spin_max
+            do j = 1, N_spin_max
+
+                write(*, '(I2,X)', advance='no'), H_full(i,j)
+
+            enddo 
+            write(*,*) ' ' ! this gives you the line break
+        enddo
+        
+    
+        write(*,*) 'H_full matrix diagonalization'
+        jobz  = 'V' !Compute eigenvalues and eigenvectors.
+        range = 'I' !IL-th through IU-th eigenvalues will be found
+        uplo  = 'U' !Upper triangle of A is stored;
+        !N_mat = N_spin_max ! The order of the matrix
+        vl     = -30.0d0 ! lower bound of eigenvalues (for range='V')
+        vu     = 30.0d0  ! upper bound of eigenvalues (for range='V')
+        il     = 1  !the index of the smallest eigenvalue to be returned.
+        iu     = N_spin_max !the index of the largest eigenvalue to be returned.
+        abstol = 10**(-10.0d0)
+        ldz    = N_spin_max
+        lwork  = 26*N_spin_max
+        liwork = 10*N_spin_max
+
+        allocate ( w(N_spin_max), eigen_vec(N_spin_max,N_spin_max), isuppz(2*N_spin_max), work(lwork), iwork(liwork) )
+        write(*,*) 'just before allocation'
+       
+        call dsyevr(jobz, range, uplo, N_spin_max, H_full, N_spin_max, vl, vu, il, iu, abstol, m_eig, w, eigen_vec, N_spin_max, isuppz, work, lwork, iwork, liwork, info)
+        write(*,*) "general zheevr info:", info
+        write(*,*) lwork, " vs optimal lwork:", work(1)
+        write(*,*) "number of eigeval found:", m_eig
+
+        write(10,*) 'i-th , eigenvalue'
+        do i= 1, m_eig
+            write(10,*) i, ',', w(i) 
+        end do
+
+        write(*,*) ' dfeast_scsrev eigenvectors to file :'
+        ! saving of eigenvectors to file
+        do i=1, m_eig
+            do j=1, N_spin_max
+                write(11,*) eigen_vec(j,i)
+            end do
+            write(11,*) " "
+        end do
+
+        write(*,*) 'eigenvec norm test:'
+        do i=1,m_eig
+            norm = dcmplx(0.0d0, 0.0d0)
+            do j=1, N_spin_max
+                norm = norm + eigen_vec(j,i)*(eigen_vec(j,i))
+            end do
+            write(12,*) i, norm
+        end do
+        
+        deallocate (H_full,  w, eigen_vec, isuppz, work, iwork )
+                            
+        close(10)
+        close(11)
+        close(12)
+
+    end subroutine H_XXX_diag_with_target_dense
 
     subroutine H_XXX_feast_vec_fill(N_spin, J_spin, no_of_nonzero)
         use omp_lib

@@ -196,16 +196,16 @@ subroutine mmm_csr_test()
         allocate(values_array_H(5), ia_H_B(4), ia_H_E(4), ja_H(5))
         ! H matrix
         ! 1 0 1 0
-        ! 0 2 0 2
-        ! 1 0 0 0
-        ! 0 2 0 2
+        ! 0 1 0 2
+        ! 1 0 1 0
+        ! 0 2 0 1
         !values vector
         values_array_H(1) = 1.0d0
         values_array_H(2) = 1.0d0
-        values_array_H(3) = 2.0d0
+        values_array_H(3) = 1.0d0
         values_array_H(4) = 2.0d0
-        values_array_H(5) = 0.0d0
-        values_array_H(6) = 2.0d0
+        values_array_H(5) = 1.0d0
+        values_array_H(6) = 1.0d0
         !columns vector
         ja_H(1) = 1
         ja_H(2) = 3
@@ -287,12 +287,12 @@ subroutine mmm_csr_test()
         stat_export = mkl_sparse_d_export_csr(H_matrix_permuted, indexing, nrow, ncol, ia_start, ia_end, ja, values)
 
         print *, "Export H permuted  = ", stat_export
-
-        ! H permuted 
+        
+        ! H permuted
         ! 1 1 0 0
-        ! 1 0 0 0 
-        ! 0 0 2 2 
-        ! 0 0 2 2
+        ! 1 1 0 0
+        ! 0 0 1 2
+        ! 0 0 2 1
 
         !   Converting C into Fortran pointers
         call C_F_POINTER(ia_start, ia_export_B, [nrow])

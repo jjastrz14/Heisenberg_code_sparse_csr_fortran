@@ -6,9 +6,10 @@ program spin_code
     use math_functions
     implicit none
 
-    integer :: N_spin, no_of_nonzero
+    integer :: N_spin, N_spin_max, no_of_nonzero
     double precision :: J_spin 
     character(len = 12) :: N_spin_char, J_spin_char
+    integer, allocatable :: hash(:), indices_Sz_basis_sorted(:)
 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
     ! tworzenie bazy i s_z działa
@@ -46,6 +47,18 @@ program spin_code
     call omp_mkl_small_test()
     call sparse_dfeast_test()
     call test_permutation_H_for_4_sites()
+
+    write(*,*) '---- START Heisenberg Program ----'
+    N_spin_max = 2**N_spin 
+    allocate(hash(N_spin_max), indices_Sz_basis_sorted(N_spin_max))
+
+    ! call H_create_basis_sz(N_spin, indices_Sz_basis_sorted)
+
+    call H_create_basis_sz_with_target(N_spin, hash)
+
+    call H_XXX_diag_with_target_dense(N_spin, J_spin, hash)
+
+    ! call CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, indices_Sz_basis_sorted)
 
     ! diagonalization using LAPACK from intel 
     !call H_XXX_diag(N_spin, J_spin)
