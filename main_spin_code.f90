@@ -9,7 +9,7 @@ program spin_code
     integer :: N_spin, N_spin_max, no_of_nonzero
     double precision :: J_spin 
     character(len = 12) :: N_spin_char, J_spin_char
-    integer, allocatable :: hash(:), indices_Sz_basis_sorted(:)
+    integer, allocatable :: hash(:), indices_Sz_basis_sorted(:), target_sz(:)
 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
     ! tworzenie bazy i s_z działa
@@ -50,12 +50,13 @@ program spin_code
 
     write(*,*) '---- START Heisenberg Program ----'
     N_spin_max = 2**N_spin 
-    allocate(hash(N_spin_max), indices_Sz_basis_sorted(N_spin_max))
+    allocate(hash(N_spin_max), indices_Sz_basis_sorted(N_spin_max), target_sz(5) )
+
+    target_sz = [2, 1, 0, -1, -2]
 
     ! call H_create_basis_sz(N_spin, indices_Sz_basis_sorted)
 
-    call H_create_basis_sz_with_target(N_spin, hash)
-
+    call H_create_basis_sz_with_target(N_spin, hash, target_sz(3))
     call H_XXX_diag_with_target_dense(N_spin, J_spin, hash)
 
     ! call CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, indices_Sz_basis_sorted)

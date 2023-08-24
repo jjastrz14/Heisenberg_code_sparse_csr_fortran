@@ -96,20 +96,20 @@ module spin_systems
     end subroutine H_create_basis_sz
 
 
-    subroutine H_create_basis_sz_with_target(N_spin, hash)
+    subroutine H_create_basis_sz_with_target(N_spin, hash, target_sz)
         !> Returns a binary representation of basis(i) as a string with at least N_spin bits. 
         !> abs(d) < 2^52
         ! dec2bin(d, n)
         use math_functions
         implicit none
 
-        integer, intent(in) :: N_spin
+        integer, intent(in) :: N_spin, target_sz
         double precision :: Sz
         character(len=53), allocatable :: dec2bin(:)
-        double precision, allocatable   :: basis_sz(:), Sz_basis(:)
-        integer :: N_spin_max, i, j, info, N, target_sz
+        double precision, allocatable   :: basis_sz(:), Sz_basis(:), S_z_target(:)
+        integer :: N_spin_max, i, j, info, N
         integer, allocatable, intent(out) ::  hash(:)
-        integer, allocatable :: basis(:)
+        integer, allocatable :: basis(:), indices_Sz_basis_sorted(:)
         logical :: bool
         CHARACTER*1 :: id
         character(len=53)             :: tmp
@@ -121,7 +121,7 @@ module spin_systems
         allocate (Sz_basis(N_spin_max))
         allocate (basis(N_spin_max))
         allocate (dec2bin(N_spin_max))
-        !allocate (index_array(N_spin_max))
+        allocate (indices_Sz_basis_sorted(N_spin_max))
 
         ! only for visualization of the basis by 0 and 1 combinations
         if (N_spin <= 10) then
@@ -172,17 +172,31 @@ module spin_systems
             write(*,*) Sz_basis(i)
         end do
 
-        allocate(hash(N_spin_max))
+        !sorting
+        id = 'D'
+        !dlasrt
+        call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
+
+        !subroutine sorts basis_sz array and creates array for permutation matrix
+        ! call indexArrayReal(N_spin_max, basis_sz, index_array)
+
+        write(*,*) 'Sorted Sz basis: '
+        write(*,*) Sz_basis(indices_Sz_basis_sorted)
+
+        allocate(hash(N_spin_max), S_z_target(N_spin_max))
+
+        S_z_target = Sz_basis(indices_Sz_basis_sorted)
+
+        write(*,*) 'Sorted Sz target basis: '
+        write(*,*) S_z_target
 
         N = 1
-        target_sz = 0
-
         do i = 1, N_spin_max
-           if (Sz_basis(i) == target_sz) then
-            !Sz_basis_target(i) = i
-            !Sz_basis_target(N) = i
-            hash(i) = N  
-            N = N + 1
+            if (S_z_target(i) == target_sz) then
+                !Sz_basis_target(i) = i
+                !Sz_basis_target(N) = i
+                hash(i) = N  
+                N = N + 1
             else 
                 hash(i) = -1 
             endif 
@@ -191,7 +205,7 @@ module spin_systems
         write(*,*) 'Hash:'
         write(*,*) hash
 
-        deallocate(Sz_basis)
+        deallocate(Sz_basis, indices_Sz_basis_sorted, S_z_target)
 
     end subroutine H_create_basis_sz_with_target
 
@@ -822,7 +836,8 @@ module spin_systems
         ! !$OMP PARALLEL DO
         do ind_i = 1, N_spin_max
             do ind_j = 1, N_spin_max
-
+                H_full_ij = 0.0d0
+                
                 if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
                     call H_XXX_filling(N_spin, J_spin, hash(ind_i), hash(ind_j), H_full_ij)
                 endif
