@@ -59,6 +59,8 @@ program spin_code
     call H_create_basis_sz_with_target(N_spin, hash, target_sz(3))
     call H_XXX_diag_with_target_dense(N_spin, J_spin, hash)
 
+    !steps: generuj macierze dla kazdego spinu i porównaj z pythonem 
+
     ! call CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, indices_Sz_basis_sorted)
 
     ! diagonalization using LAPACK from intel 

@@ -790,7 +790,7 @@ module spin_systems
         integer, intent(in) :: N_spin
         double precision, intent(in) :: J_spin
         integer, allocatable, intent(in) :: hash(:)
-        integer :: i, j, ind_i, ind_j, N_spin_max
+        integer :: i, j, ind_i, ind_j, N_spin_max, max_val_hash
         double precision, allocatable :: H_full(:,:)
         double precision :: norm, H_full_ij, J_spin_number
  
@@ -819,9 +819,10 @@ module spin_systems
         ! lets rewrite our matlab code
         ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
     
-        call omp_mkl_small_test()
+        !call omp_mkl_small_test()
         
         N_spin_max = 2**N_spin
+        max_val_hash = maxval(hash)
         write(*,*) 'be carefull about N_spin_max max size'
         write(*,*) 'test for N_spin_max', N_spin_max
         
