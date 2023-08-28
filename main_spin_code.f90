@@ -43,7 +43,7 @@ program spin_code
     write(*,*) 'Calculation of Heisenberg chain for N =', N_spin , 'and J = ', J_spin 
     write(*,*) ' '
 
-    call mmm_csr_test()
+    !call mmm_csr_test()
     call omp_mkl_small_test()
     call sparse_dfeast_test()
     call test_permutation_H_for_4_sites()
@@ -56,8 +56,8 @@ program spin_code
 
     ! call H_create_basis_sz(N_spin, indices_Sz_basis_sorted)
 
-    call H_create_basis_sz_with_target(N_spin, hash, target_sz(3))
-    call H_XXX_diag_with_target_dense(N_spin, J_spin, hash)
+    call H_create_basis_sz_with_target(N_spin, hash, target_sz(2))
+    call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
 
     !steps: generuj macierze dla kazdego spinu i porównaj z pythonem 
 

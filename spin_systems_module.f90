@@ -173,19 +173,20 @@ module spin_systems
         end do
 
         !sorting
-        id = 'D'
+        !id = 'D'
         !dlasrt
-        call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
+        !call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
 
         !subroutine sorts basis_sz array and creates array for permutation matrix
         ! call indexArrayReal(N_spin_max, basis_sz, index_array)
 
-        write(*,*) 'Sorted Sz basis: '
-        write(*,*) Sz_basis(indices_Sz_basis_sorted)
+        !write(*,*) 'Sorted Sz basis: '
+        !write(*,*) Sz_basis(indices_Sz_basis_sorted)
 
         allocate(hash(N_spin_max), S_z_target(N_spin_max))
 
-        S_z_target = Sz_basis(indices_Sz_basis_sorted)
+        !S_z_target = Sz_basis(indices_Sz_basis_sorted)
+        S_z_target = Sz_basis
 
         write(*,*) 'Sorted Sz target basis: '
         write(*,*) S_z_target
@@ -205,7 +206,8 @@ module spin_systems
         write(*,*) 'Hash:'
         write(*,*) hash
 
-        deallocate(Sz_basis, indices_Sz_basis_sorted, S_z_target)
+        !deallocate(Sz_basis, indices_Sz_basis_sorted, S_z_target)
+        deallocate(Sz_basis, S_z_target)
 
     end subroutine H_create_basis_sz_with_target
 
@@ -781,7 +783,7 @@ module spin_systems
 
     end subroutine H_XXX_diag
 
-    subroutine H_XXX_diag_with_target_dense(N_spin, J_spin, hash)
+    subroutine H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
         use omp_lib
         use mkl_vsl
         use tests_module
@@ -790,8 +792,8 @@ module spin_systems
         integer, intent(in) :: N_spin
         double precision, intent(in) :: J_spin
         integer, allocatable, intent(in) :: hash(:)
-        integer :: i, j, ind_i, ind_j, N_spin_max, max_val_hash
-        double precision, allocatable :: H_full(:,:)
+        integer :: i, j, ind_i, ind_j, N_spin_max, max_val_hash_loc, min_val_hash_loc, max_val_hash, dim
+        double precision, allocatable :: H_full_block(:,:)
         double precision :: norm, H_full_ij, J_spin_number
  
         CHARACTER*1 :: jobz, range, uplo
@@ -817,50 +819,62 @@ module spin_systems
         
         ! open (unit=11, file="H_full.dat", recl=512)
         ! lets rewrite our matlab code
-        ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
-    
-        !call omp_mkl_small_test()
+        ! Example for N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
         
         N_spin_max = 2**N_spin
-        max_val_hash = maxval(hash)
-        write(*,*) 'be carefull about N_spin_max max size'
-        write(*,*) 'test for N_spin_max', N_spin_max
+        max_val_hash_loc = MAXLOC(hash, dim = 1)
+        min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
+        max_val_hash = MAXVAl(hash)
+
+        write(*,*) 'max val hash', max_val_hash
+        write(*,*) 'max val hash location', max_val_hash_loc
+        write(*,*) 'min val hash location', min_val_hash_loc
         
-        allocate( H_full(N_spin_max, N_spin_max))
+        allocate( H_full_block(max_val_hash, max_val_hash))
 
         J_spin_number = J_spin
-        H_full = 0.0d0
+        H_full_block = 0.0d0
 
         !!! H_full filling
-        write(*,*) 'H_full: '
+        write(*,*) 'H block: '
           
-        ! !$OMP PARALLEL DO
+        !$OMP PARALLEL DO
         do ind_i = 1, N_spin_max
             do ind_j = 1, N_spin_max
-                H_full_ij = 0.0d0
-                
+
                 if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
-                    call H_XXX_filling(N_spin, J_spin, hash(ind_i), hash(ind_j), H_full_ij)
+                    call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
+                    H_full_block(hash(ind_i),hash(ind_j))= H_full_ij
                 endif
 
-                H_full(ind_i,ind_j) = H_full_ij
-                ! write(11,*) ind_i, ind_j, H_full(ind_i,ind_j)
             end do
         end do
-        ! !$OMP END PARALLEL DO
+        !$OMP END PARALLEL DO
+        
+        !printing above result
+
+        do ind_i = 1, max_val_hash
+            do ind_j = 1, max_val_hash
+
+                print *,  ind_i, ind_j, H_full_block(ind_i,ind_j)
+
+            end do
+        end do
+        
 
         write(*,*) 'H matrix for target 0 '
-        do i = 1, N_spin_max
-            do j = 1, N_spin_max
+        do i = 1, max_val_hash
+            do j = 1, max_val_hash
 
-                write(*, '(I2,X)', advance='no'), H_full(i,j)
+                write(*, '(I2,X)', advance='no'), H_full_block(i,j)
 
             enddo 
             write(*,*) ' ' ! this gives you the line break
         enddo
         
+        
     
-        write(*,*) 'H_full matrix diagonalization'
+        write(*,*) 'H block matrix diagonalization'
         jobz  = 'V' !Compute eigenvalues and eigenvectors.
         range = 'I' !IL-th through IU-th eigenvalues will be found
         uplo  = 'U' !Upper triangle of A is stored;
@@ -868,16 +882,16 @@ module spin_systems
         vl     = -30.0d0 ! lower bound of eigenvalues (for range='V')
         vu     = 30.0d0  ! upper bound of eigenvalues (for range='V')
         il     = 1  !the index of the smallest eigenvalue to be returned.
-        iu     = N_spin_max !the index of the largest eigenvalue to be returned.
+        iu     = max_val_hash !the index of the largest eigenvalue to be returned.
         abstol = 10**(-10.0d0)
         ldz    = N_spin_max
         lwork  = 26*N_spin_max
         liwork = 10*N_spin_max
 
-        allocate ( w(N_spin_max), eigen_vec(N_spin_max,N_spin_max), isuppz(2*N_spin_max), work(lwork), iwork(liwork) )
+        allocate ( w(max_val_hash), eigen_vec(max_val_hash,max_val_hash), isuppz(2*max_val_hash), work(lwork), iwork(liwork) )
         write(*,*) 'just before allocation'
        
-        call dsyevr(jobz, range, uplo, N_spin_max, H_full, N_spin_max, vl, vu, il, iu, abstol, m_eig, w, eigen_vec, N_spin_max, isuppz, work, lwork, iwork, liwork, info)
+        call dsyevr(jobz, range, uplo, max_val_hash, H_full_block, max_val_hash, vl, vu, il, iu, abstol, m_eig, w, eigen_vec, max_val_hash, isuppz, work, lwork, iwork, liwork, info)
         write(*,*) "general zheevr info:", info
         write(*,*) lwork, " vs optimal lwork:", work(1)
         write(*,*) "number of eigeval found:", m_eig
@@ -885,12 +899,13 @@ module spin_systems
         write(10,*) 'i-th , eigenvalue'
         do i= 1, m_eig
             write(10,*) i, ',', w(i) 
+            write(*,*) i, ',', w(i) 
         end do
 
         write(*,*) ' dfeast_scsrev eigenvectors to file :'
         ! saving of eigenvectors to file
         do i=1, m_eig
-            do j=1, N_spin_max
+            do j=1, max_val_hash
                 write(11,*) eigen_vec(j,i)
             end do
             write(11,*) " "
@@ -899,19 +914,19 @@ module spin_systems
         write(*,*) 'eigenvec norm test:'
         do i=1,m_eig
             norm = dcmplx(0.0d0, 0.0d0)
-            do j=1, N_spin_max
+            do j=1, max_val_hash
                 norm = norm + eigen_vec(j,i)*(eigen_vec(j,i))
             end do
             write(12,*) i, norm
         end do
         
-        deallocate (H_full,  w, eigen_vec, isuppz, work, iwork )
+        deallocate (H_full_block, w, eigen_vec, isuppz, work, iwork )
                             
         close(10)
         close(11)
         close(12)
 
-    end subroutine H_XXX_diag_with_target_dense
+    end subroutine H_XXX_block_diag_with_target_dense
 
     subroutine H_XXX_feast_vec_fill(N_spin, J_spin, no_of_nonzero)
         use omp_lib
@@ -952,10 +967,6 @@ module spin_systems
             do ind_j = ind_i, N_spin_max ! do wymiaru podprzestrzeni
                 call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
 
-                !if hash(ind_i) > 0 .AND. hash(ind_j) > 0 then
-                    ! call H_XXX_filling(N_spin, J_spin, hash(ind_i), hash(ind_j), H_full_ij)
-                ! end if
-
                 if (ind_i  == ind_j) then
                     !write(20, *)
                     write(21, *) ind_j
@@ -986,6 +997,77 @@ module spin_systems
         close(22)
 
     end subroutine H_XXX_feast_vec_fill
+
+
+    subroutine H_XXX_block_feast_vec_fill(N_spin, J_spin, no_of_nonzero)
+        use omp_lib
+        use mkl_vsl
+        use tests_module
+        implicit none
+        
+        integer, intent(in) :: N_spin
+        double precision, intent(in) :: J_spin
+        integer, intent(out) :: no_of_nonzero
+        integer :: i, j, ind_i, ind_j,  N_spin_max, counter, ind_ia            
+        double precision :: norm, H_full_ij
+
+        open (unit=20, file="ia_h.dat", recl=512)
+        open (unit=21, file="ja_h.dat", recl=512)
+        open (unit=22, file="values_array_h.dat", recl=512)
+  
+        ! N spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
+
+        !N_spin = 4
+        !J_spin = 1
+        N_spin_max = 2**N_spin
+        write(*,*) 'be carefull about N_spin_max max size'
+        write(*,*) 'test for N_spin_max', N_spin_max
+        
+        ! we start with saving ia, ja and val_arr into files (needs to be compared with ram only approach)  
+        
+        ! DODAC TU OMP! nie zrobisz przy zapisie do pliku
+       
+        !!! H_full filling
+        write(*,*) 'expected counter: =', N_spin_max*(N_spin_max+1)/2
+        counter = 0
+        ind_ia = 0
+        do ind_i = 1, N_spin_max ! do wymiaru podprzestrzeni
+            ind_ia = ind_ia + 1
+            write(20,*) ind_ia
+            
+            do ind_j = ind_i, N_spin_max ! do wymiaru podprzestrzeni
+                call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
+
+                if (ind_i  == ind_j) then
+                    !write(20, *)
+                    write(21, *) ind_j
+                    write(22, *) H_full_ij
+                    counter = counter + 1
+                else if (H_full_ij .NE. 0.0d0) then
+                    !write(20, *) 
+                    ind_ia = ind_ia + 1
+                    write(21, *) ind_j
+                    write(22, *) H_full_ij
+                    counter = counter + 1
+                else
+                    counter = counter + 1
+                end if
+                
+            end do
+            
+        end do
+        
+        write(20,*) ind_ia+1
+        
+        write(*,*) 'counter test = ', counter 
+        no_of_nonzero = ind_ia
+        write(*,*) 'number of non-zero elements = ', no_of_nonzero
+        
+        close(20)
+        close(21)
+        close(22)
+
+    end subroutine H_XXX_block_feast_vec_fill
 
     
     subroutine H_XXX_feast_vec_diag(N_spin, no_of_nonzero)
