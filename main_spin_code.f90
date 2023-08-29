@@ -6,9 +6,10 @@ program spin_code
     use math_functions
     implicit none
 
-    integer :: N_spin, N_spin_max, no_of_nonzero
+    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B
     double precision :: J_spin 
     character(len = 12) :: N_spin_char, J_spin_char
+    character(len=53) :: dec2bin, spin_basis
     integer, allocatable :: hash(:), indices_Sz_basis_sorted(:), target_sz(:)
 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
@@ -50,16 +51,28 @@ program spin_code
 
     write(*,*) '---- START Heisenberg Program ----'
     N_spin_max = 2**N_spin 
-    allocate(hash(N_spin_max), indices_Sz_basis_sorted(N_spin_max), target_sz(5) )
+    allocate(hash(N_spin_max), target_sz(5) )
+    allocate(indices_Sz_basis_sorted(N_spin_max))
 
     target_sz = [2, 1, 0, -1, -2]
 
     ! call H_create_basis_sz(N_spin, indices_Sz_basis_sorted)
 
     call H_create_basis_sz_with_target(N_spin, hash, target_sz(2))
-    call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
 
-    !steps: generuj macierze dla kazdego spinu i porównaj z pythonem 
+    call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
+    call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
+    call H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash)
+
+    !spin_basis = dec2bin
+    size_of_sub_A = N_spin/2
+    size_of_sub_B = N_spin - size_of_sub_A
+    print *, size_of_sub_A
+    print *, size_of_sub_B
+
+    !call Basis_for_rho_reduced(spin_basis, size_of_sub_A, size_of_sub_B, new_basis)
+
+    !steps: generuj macierze dla kazdego spinu i porównaj z pythonem - dziala 
 
     ! call CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, indices_Sz_basis_sorted)
 

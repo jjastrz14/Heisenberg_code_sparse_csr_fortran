@@ -107,9 +107,9 @@ module spin_systems
         double precision :: Sz
         character(len=53), allocatable :: dec2bin(:)
         double precision, allocatable   :: basis_sz(:), Sz_basis(:), S_z_target(:)
-        integer :: N_spin_max, i, j, info, N
+        integer :: N_spin_max, i, j, info, N, interator
         integer, allocatable, intent(out) ::  hash(:)
-        integer, allocatable :: basis(:), indices_Sz_basis_sorted(:)
+        integer, allocatable :: basis(:), indices_Sz_basis_sorted(:), basis_vector(:,:), basis_vector_reversed(:,:)
         logical :: bool
         CHARACTER*1 :: id
         character(len=53)             :: tmp
@@ -122,6 +122,7 @@ module spin_systems
         allocate (basis(N_spin_max))
         allocate (dec2bin(N_spin_max))
         allocate (indices_Sz_basis_sorted(N_spin_max))
+        allocate (basis_vector(N_spin_max, N_spin),  basis_vector_reversed(N_spin_max, N_spin))
 
         ! only for visualization of the basis by 0 and 1 combinations
         if (N_spin <= 10) then
@@ -145,9 +146,9 @@ module spin_systems
         ! Maciek version of basis generation with btest
         ! we can use e.g. btest function, which returns info if given bit is 0 (false) or 1 (true) 
         !bool_T/F=btest(number, bit_number)
-        ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2
+        ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2 : spin_up -> 0, spin_down -> 1
         do i = 0 , N_spin_max-1
-            !basis(i) = i !here we want Sz from this i
+            basis(i) = i !here we want Sz from this i
             ! write(*,*) 'basis vector i =', i+1
             Sz = 0.0d0
             do j=0, N_spin-1
@@ -156,36 +157,36 @@ module spin_systems
 
                 if (bool==.FALSE.) then
                     Sz=Sz+1.0d0/2.0d0
+                    ! this basis_vector is used for truncating basis for reduced density matrices 
+                    basis_vector(i + 1, N_spin - j) = 0
                 elseif (bool==.TRUE.) then
                     Sz=Sz-1.0d0/2.0d0
+                    ! this basis_vector is used for truncating basis for reduced density matrices 
+                    basis_vector(i + 1, N_spin - j) = 1
                 else
                     write(*,*) 'something wrong'
                     error stop
-                end if                
+                end if  
             end do    
             Sz_basis(i+1) = Sz
             ! write(*,*) 'for basis vector i =', i, 'Sz = ', Sz_basis(i+1)
         end do
+
+        ! this basis_vector is used for truncating basis for reduced density matrices 
+        !write(*,*) 'Basis vector 0 and 1: ' 
+        !do i = 1, N_spin_max 
+          !  do j = 1, N_spin 
+          !      write(*,*), i, j, basis_vector(i,j)
+          !  end do 
+        !end do 
 
         write(*,*) 'Summary of Sz basis: '
         do i=1,N_spin_max
             write(*,*) Sz_basis(i)
         end do
 
-        !sorting
-        !id = 'D'
-        !dlasrt
-        !call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
-
-        !subroutine sorts basis_sz array and creates array for permutation matrix
-        ! call indexArrayReal(N_spin_max, basis_sz, index_array)
-
-        !write(*,*) 'Sorted Sz basis: '
-        !write(*,*) Sz_basis(indices_Sz_basis_sorted)
-
         allocate(hash(N_spin_max), S_z_target(N_spin_max))
 
-        !S_z_target = Sz_basis(indices_Sz_basis_sorted)
         S_z_target = Sz_basis
 
         write(*,*) 'Sorted Sz target basis: '
@@ -953,9 +954,7 @@ module spin_systems
         write(*,*) 'test for N_spin_max', N_spin_max
         
         ! we start with saving ia, ja and val_arr into files (needs to be compared with ram only approach)  
-        
-        ! DODAC TU OMP! nie zrobisz przy zapisie do pliku
-       
+
         !!! H_full filling
         write(*,*) 'expected counter: =', N_spin_max*(N_spin_max+1)/2
         counter = 0
@@ -999,63 +998,90 @@ module spin_systems
     end subroutine H_XXX_feast_vec_fill
 
 
-    subroutine H_XXX_block_feast_vec_fill(N_spin, J_spin, no_of_nonzero)
+    subroutine H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
         use omp_lib
         use mkl_vsl
         use tests_module
         implicit none
         
         integer, intent(in) :: N_spin
+        integer, allocatable, intent(in) :: hash(:)
         double precision, intent(in) :: J_spin
         integer, intent(out) :: no_of_nonzero
-        integer :: i, j, ind_i, ind_j,  N_spin_max, counter, ind_ia            
-        double precision :: norm, H_full_ij
+        integer :: i, j, ind_i, ind_j,  N_spin_max, counter, ind_ia, max_val_hash_loc , min_val_hash_loc, max_val_hash    
+        double precision :: norm, H_block_ij
 
-        open (unit=20, file="ia_h.dat", recl=512)
-        open (unit=21, file="ja_h.dat", recl=512)
-        open (unit=22, file="values_array_h.dat", recl=512)
+        open (unit=20, file="ia_h_block.dat", recl=512)
+        open (unit=21, file="ja_h_block.dat", recl=512)
+        open (unit=22, file="values_array_h_block.dat", recl=512)
   
         ! N spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
 
-        !N_spin = 4
-        !J_spin = 1
+         ! Example for N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
+        
         N_spin_max = 2**N_spin
-        write(*,*) 'be carefull about N_spin_max max size'
-        write(*,*) 'test for N_spin_max', N_spin_max
-        
-        ! we start with saving ia, ja and val_arr into files (needs to be compared with ram only approach)  
-        
-        ! DODAC TU OMP! nie zrobisz przy zapisie do pliku
-       
+        max_val_hash_loc = MAXLOC(hash, dim = 1)
+        min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
+        max_val_hash = MAXVAl(hash)
+
+        write(*,*) 'max val hash', max_val_hash
+        write(*,*) 'max val hash location', max_val_hash_loc
+        write(*,*) 'min val hash location', min_val_hash_loc
+
         !!! H_full filling
-        write(*,*) 'expected counter: =', N_spin_max*(N_spin_max+1)/2
+        write(*,*) 'H block feast filling for target :'
+          
+        ! !$OMP PARALLEL DO
+        !do ind_i = 1, N_spin_max
+         !   do ind_j = 1, N_spin_max
+
+          !!      if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
+          !          call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_block_ij)
+          !          H_full_block(hash(ind_i),hash(ind_j))= H_block_ij
+           !     endif
+!
+           ! end do
+        !end do
+       ! !$OMP END PARALLEL DO
+
+        write(*,*) 'expected counter: =', max_val_hash*(max_val_hash+1)/2
         counter = 0
         ind_ia = 0
-        do ind_i = 1, N_spin_max ! do wymiaru podprzestrzeni
-            ind_ia = ind_ia + 1
-            write(20,*) ind_ia
-            
-            do ind_j = ind_i, N_spin_max ! do wymiaru podprzestrzeni
-                call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
 
-                if (ind_i  == ind_j) then
-                    !write(20, *)
-                    write(21, *) ind_j
-                    write(22, *) H_full_ij
-                    counter = counter + 1
-                else if (H_full_ij .NE. 0.0d0) then
-                    !write(20, *) 
-                    ind_ia = ind_ia + 1
-                    write(21, *) ind_j
-                    write(22, *) H_full_ij
-                    counter = counter + 1
-                else
-                    counter = counter + 1
-                end if
-                
+        ! !$OMP PARALLEL DO
+
+        do ind_i = 1, N_spin_max ! do wymiaru podprzestrzeni
+
+            if (hash(ind_i) > 0) then
+                ind_ia = ind_ia + 1
+                write(20,*) ind_ia
+            end if 
+
+            do ind_j = ind_i, N_spin_max ! do wymiaru podprzestrzeni
+
+                if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
+                    call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_block_ij)
+
+                    if (ind_i  == ind_j) then
+                        !write(20, *)
+                        write(21, *) hash(ind_j)
+                        write(22, *) H_block_ij
+                        counter = counter + 1
+                    else if (H_block_ij .NE. 0.0d0) then
+                        !write(20, *) 
+                        ind_ia = ind_ia + 1
+                        write(21, *) hash(ind_j)
+                        write(22, *) H_block_ij
+                        counter = counter + 1
+                    else 
+                        counter = counter + 1
+                    end if
+
+                endif
             end do
-            
         end do
+
+        ! !$OMP END PARALLEL DO
         
         write(20,*) ind_ia+1
         
@@ -1189,59 +1215,228 @@ module spin_systems
 
     end subroutine H_XXX_feast_vec_diag
 
-    subroutine H_XXX_blocks_sz_feast()
+    subroutine H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash)
+        use omp_lib
+        use mkl_vsl
+        use tests_module
         implicit none
-        !basis_sz
-        !HERE CREATE BLOCKS FOR H_XXX in that way to have them DIAGONALZIE VIA FEAST (in another subroutine)
+                    
+        integer, intent(in) :: N_spin, no_of_nonzero
+        integer, allocatable, intent(in) :: hash(:)
+        integer :: i, j, N_spin_max, info, m_eig, n, loop, m0, fpm(128), ja_temp, ia_temp, max_val_hash
+        CHARACTER*1 :: uplo
+        double precision, allocatable :: values_array(:), x(:,:), e(:), res(:)
+        integer, allocatable :: ia(:), ja(:)
+        double precision :: emin, emax, epsout, norm, val_arr_temp
 
-    end subroutine H_XXX_blocks_sz_feast
+        CHARACTER(len=100) :: file_name1, file_name2, file_name3
+        CHARACTER(len=10) :: N_spin_charachter
 
-    subroutine Rho_reduced_to_sz_basis
-        implicit none
+        !Write the integer into a string:
+        write(N_spin_charachter, '(i0)') N_spin
 
+        file_name1 = 'H_eigenvals_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
+        file_name2 = 'H_eigenvectors_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
+        file_name3 = 'H_norm_test_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
+
+        open (unit=30, file= trim(file_name1), recl=512)
+        open (unit=31, file=trim(file_name2), recl=512)
+        open (unit=32, file= trim(file_name3) , recl=512)
+
+        !FEAST diagonalization
+        ! we need to store diagonal zeros as well !!!
+        N_spin_max = 2**N_spin
+        max_val_hash = MAXVAl(hash)
+        allocate( values_array(no_of_nonzero), ia(max_val_hash+1), ja(no_of_nonzero) )
+        
+        !reading of exsisting files
+        open (unit=20, file="ia_h_block.dat", recl=512)
+        open (unit=21, file="ja_h_block.dat", recl=512)
+        open (unit=22, file="values_array_h_block.dat", recl=512)
+  
+        
+        do i=1, max_val_hash+1           
+            read(20, *) ia_temp
+            ia(i) = ia_temp
+        end do
+            
+        do i=1, no_of_nonzero
+            read(22,*) val_arr_temp
+            values_array(i) = val_arr_temp
+            read(21, *) ja_temp
+            ja(i) = ja_temp
+        end do
+        
+        close(20)
+        close(21)
+        close(22)
+
+        !n=n     ! Sets the size of the problem
+        !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+        call feastinit (fpm)  ! function specifying default parameters fpm of FEAST algorithm
+        fpm(1) = 1
+        fpm(2) = 12 !can be more, can be less
+        fpm(3) = 8 !eps 10^-fpm(3)
+        fpm(4) = 20 ! max number of feast loops
+        fpm(5) = 0 !initial subspace
+        fpm(6) = 0! stopping criterion
+        fpm(7) = 5 !Error trace sigle prec stop crit
+        fpm(14) = 0 ! standard use of feast
+        fpm(27) = 1 !check input matrices
+        fpm(28) = 1 !check if B is positive definite?         
+        uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
+        emin = -1.5d0 ! The lower ... &
+        emax =  1.5d0  !  and upper bounds of the interval to be searched for eigenvalues
+        m0 = max_val_hash !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n. 
+        !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
+        !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+        n = max_val_hash
+        allocate( x(n,m0), e(m0), res(m0) )
+        write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+        write(*,*) 'Before dfeast_scsrev... '
+        call dfeast_scsrev(uplo, n, values_array, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m_eig, res, info)
+        write(*,*) 'eps_out= ', epsout
+        write(*,*) 'loop= ', loop
+        write(*,*) ' dfeast_scsrev info=', info
+        write(*,*) 'After  dfeast_scsrev... '
+            
+        if (info /= 0) then
+        write(*,*) 'problem with  dfeast_scsrev, info=', info
+        end if 
+        
+        write(*,*) ' dfeast_scsrev eigenvalues found= ', m_eig
+        write(30,*) 'i-th , eigenvalue'
+        do i = 1 , m_eig
+            write(30,*) i, ',' , e(i)
+        end do
+        
+        write(*,*) ' dfeast_scsrev eigenvectors to file :'
+        ! saving of eigenvectors to file
+        do i=1, m_eig
+            do j=1, n
+                write(31,*) x(j,i)
+            end do
+            write(31,*) " "
+        end do
+
+        write(*,*) ' dfeast_scsrev eigenvec norm:'
+        do i=1, m_eig
+            norm = 0.0d0
+            do j=1, n
+                norm = norm + x(j,i)*(x(j,i))
+            end do
+            write(32,*) i, norm
+        end do
+                    
+        deallocate(values_array, ia, ja, x, e, res)
+        
+        close(30)
+        close(31)
+        close(32)
+
+    end subroutine H_XXX_block_feast_vec_diag
+
+    !subroutine Basis_for_rho_reduced(spin_basis, size_of_sub_A, size_of_sub_B, new_basis)
+        !implicit none
         !calculate density matrix rho from eigenvector due according to the truncated basis 
+          
+        !integer, intent(in) :: size_of_sub_A, size_of_sub_B
+        !character(len=*), intent(in) :: spin_basis
+        !character(len=*) :: subsystem_A, subsystem_B
+        !integer, allocatable, intent(out) :: new_basis(:,:)
+        
+        !integer :: i, j, k, l
+        
+        ! Calculate the bases of subsystems A and B
+        ! The `unique` function is a built-in function in Fortran that is used to remove duplicate elements from a list.
+       ! call unique(spin_basis(1:size_of_sub_A), subsystem_A)
+        !call unique(spin_basis(size_of_sub_B+1:), subsystem_B)
+        
+        ! Print the bases of subsystems A and B
+        
+        !print *, "Basis for subsystem A:", subsystem_A
+        !print *, "Basis for subsystem B:", subsystem_B
+        
+        ! Calculate the new basis
+        
+        !allocate(new_basis(size(subsystem_A), size(subsystem_B)))
+        
+        !do i = 1, size(subsystem_A)
+         !   do j = 1, size(subsystem_B)
+          !  k = index(spin_basis, subsystem_A(i) // subsystem_B(j))
+           ! if (k > 0) then
+            !    l = index(new_basis, (i, j))
+             !   if (l == 0) then
+              !  new_basis(l, :) = (i, j)
+               ! end if
+           ! end if
+           ! end do
+        !end do
+        
+        ! Print the new basis
+        
+        !print *, "This is new basis:", new_basis
 
-    end subroutine Rho_reduced_to_sz_basis
 
-    subroutine Entropy_calculation()
+    !end subroutine Basis_for_rho_reduced
+
+    subroutine Entropy_calculation(size_reduced_basis, rho_reduced)
         !size_reduced_basis, rho_reduced
         implicit none
         !calculate entropy according to reduced density matrix and normalazing it due to the truncated basis
-        ! diagonalize reduced density matrix via LAPAC, check if its symmetric!
+        ! diagonalize reduced density matrix using LAPACK, check if its symmetric!
 
-        !implicit none 
-        !use omp_lib
-        !use mkl_vsl
-        !use omp_mkl_test
+        integer, intent(in) :: size_reduced_basis
+        double precision, allocatable, intent(in) :: rho_reduced
+        double precision :: entropy_value
+        integer :: ind_i
 
-        !integer, intent(in) :: size_reduced_basis
-        !double precision, allocatable, intent(in) :: rho_reduced
+        !for diagonalization
+        CHARACTER*1 :: jobz, range, uplo
+        integer :: il, iu, ldz, liwork, lwork, info, m_eig
+        double precision :: vl, vu, abstol
+        double precision, allocatable :: work(:), eigen_vec(:,:)
+        integer, allocatable :: iwork(:), isuppz(:)
+        double precision, allocatable :: eigen_values(:)
 
-        !allocate(rho_reduced(size_reduced_basis))
+        write(*,*) 'Rho_reduced matrix diagonalization'
+        write(*,*) 'check for bigger N if lower and upper bound for eigenvalues is correctly set'
+        jobz  = 'V' !Compute eigenvalues and eigenvectors.
+        range = 'I' !IL-th through IU-th eigenvalues will be found
+        uplo  = 'U' !Upper triangle of A is stored;
+        !N_mat = N_spin_max ! The order of the matrix
+        vl     = -30.0d0 ! lower bound of eigenvalues (for range='V')
+        vu     = 30.0d0  ! upper bound of eigenvalues (for range='V')
+        il     = 1  !the index of the smallest eigenvalue to be returned.
+        iu     = size_reduced_basis !the index of the largest eigenvalue to be returned.
+        abstol = 10**(-10.0d0)
+        ldz    = size_reduced_basis
+        lwork  = 26*size_reduced_basis
+        liwork = 10*size_reduced_basis
+
+        allocate ( eigen_values(size_reduced_basis), eigen_vec(size_reduced_basis,size_reduced_basis), isuppz(2*size_reduced_basis), work(lwork), iwork(liwork) )
+        write(*,*) 'just before allocation'
+       
+        call dsyevr(jobz, range, uplo, size_reduced_basis, rho_reduced, size_reduced_basis, vl, vu, il, iu, abstol, m_eig, eigen_values, eigen_vec, size_reduced_basis, isuppz, work, lwork, iwork, liwork, info)
+        write(*,*) "general zheevr info:", info
+        write(*,*) lwork, " vs optimal lwork:", work(1)
+        write(*,*) "number of eigeval found:", m_eig
  
-        !def calculate_entropy(self,rho_reduced,n):
-        
-        !Here depending if s = 1/2 or s = 1 you need to change the base of log 
-        !n - number of spins in the subsystem
-        !eigen_rho, vectors = self.eig_diagonalize(rho_reduced) 
-        
-        !entropy = -sum(eigen_rho*np.log(eigen_rho, where=0<eigen_rho, out=0.0*eigen_rho))
-        !eigen_rho_nonzero = eigen_rho[(eigen_rho > 10e-8) & (eigen_rho < 1.0)]
-        !entropy = -np.sum(eigen_rho_nonzero * np.log2(eigen_rho_nonzero))
-        
-        !entropy = 0
-        !for i in range(len(eigen_rho)):
-            !print(eigen_rho[i])
-        !    if eigen_rho[i] <= 10e-8:
-        !        entropy += 0.0
-                
-         !   elif eigen_rho[i] == 1.0:
-         !       entropy += 0.0
-                
-          !  else:
-         !       entropy += -(eigen_rho[i]*np.log2(eigen_rho[i]))
 
-        !deallocate(rho_reduced)
+        ! Entropy calculation
+        entropy_value = 0.0d0
+
+        do ind_i = 1, size_reduced_basis
+            if (eigen_values(ind_i) <= 10E-8) then 
+                entropy_value = entropy_value + 0.0d0
+            else if (eigen_values(ind_i) == 1.0d0 ) then
+                entropy_value = entropy_value + 0.0d0
+            else 
+                entropy_value = entropy_value -(eigen_values(ind_i) * LOG(eigen_values(ind_i)))
+            end if 
+        end do 
+
+        write(*,*) "This is entropy for this energy", entropy_value
     
     end subroutine Entropy_calculation
 
