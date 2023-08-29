@@ -482,7 +482,7 @@ subroutine mmm_csr_test()
         !$OMP END PARALLEL DO
 
         !creating H for N = 4 
-        call H_create_basis_sz(N_spin, index_array_sz)
+        call H_create_basis_sz_sorted(N_spin, index_array_sz)
 
         !creating P for N = 4 
         call Create_permutation_matrix(N_spin_max, index_array_sz, p_matrix)

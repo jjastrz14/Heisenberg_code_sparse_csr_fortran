@@ -125,4 +125,62 @@ module math_functions
         end subroutine swap
     end subroutine indexArrayReal
 
+
+    subroutine RemoveDuplicates(input_array, final_array)
+        integer, dimension(:,:), intent(in) :: input_array
+        integer, dimension(:,:), allocatable, intent(out) :: final_array
+        integer, dimension(:,:), allocatable :: unique_array
+    
+        integer :: i, j, k
+        logical :: is_duplicate
+    
+        allocate(unique_array(size(input_array, 1), size(input_array, 2)))
+    
+        k = 0! Index for the unique_array
+    
+        do i = 1, size(input_array, 1)
+            is_duplicate = .false.
+    
+            ! Check if the current row is a duplicate of any previous row
+            do j = 1, k
+                if (all(input_array(i, :) == unique_array(j, :))) then
+                    is_duplicate = .true.
+                    exit
+                end if
+            end do
+    
+            if (.not. is_duplicate) then
+                k = k + 1
+                unique_array(k, :) = input_array(i, :)
+            end if
+        end do
+         ! Deallocate input_array if it's no longer needed
+        ! Resize unique_array to the actual size
+        allocate(final_array(k, size(input_array, 2)))
+        final_array = unique_array(1:k, :)
+
+    end subroutine RemoveDuplicates
+
+
+    subroutine FindRowIndex(target_row, search_array, index)
+        integer, dimension(:), intent(in) :: target_row
+        integer, dimension(:,:), intent(in) :: search_array
+        integer, intent(out):: index
+        integer :: i
+    
+            ! Initialize the function value to indicate not found
+            index = 0
+        
+            do i = 1, size(search_array, 1)
+                if (all(target_row == search_array(i, :))) then
+                    index = i
+                    exit ! Exit the loop when found
+                end if
+            end do
+
+    end subroutine FindRowIndex
+    
+    
+
+
 end module math_functions

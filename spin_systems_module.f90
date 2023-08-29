@@ -1,7 +1,7 @@
 module spin_systems
     contains
 
-    subroutine H_create_basis_sz(N_spin, indices_Sz_basis_sorted)
+    subroutine H_create_basis_sz_sorted(N_spin, indices_Sz_basis_sorted)
         !> Returns a binary representation of basis(i) as a string with at least N_spin bits. 
         !> abs(d) < 2^52
         ! dec2bin(d, n)
@@ -76,7 +76,10 @@ module spin_systems
         do i=1,N_spin_max
             write(*,*) Sz_basis(i)
         end do
-
+        !commenting these lines
+        !go to 90
+        ! CHUNK OF CODE YOU WANT TO COMMENT OUT
+        
         !sorting
         id = 'D'
         !dlasrt
@@ -84,6 +87,7 @@ module spin_systems
 
         !subroutine sorts basis_sz array and creates array for permutation matrix
         ! call indexArrayReal(N_spin_max, basis_sz, index_array)
+        !90 continue
 
         write(*,*) 'Indicies of Sorted Sz basis: '
         write(*,*) indices_Sz_basis_sorted
@@ -93,23 +97,24 @@ module spin_systems
 
         deallocate(Sz_basis)
 
-    end subroutine H_create_basis_sz
+    end subroutine H_create_basis_sz_sorted
 
 
-    subroutine H_create_basis_sz_with_target(N_spin, hash, target_sz)
+    subroutine H_create_basis_sz(N_spin, Sz_basis, basis_vector)
         !> Returns a binary representation of basis(i) as a string with at least N_spin bits. 
         !> abs(d) < 2^52
         ! dec2bin(d, n)
         use math_functions
         implicit none
 
-        integer, intent(in) :: N_spin, target_sz
+        integer, intent(in) :: N_spin
         double precision :: Sz
         character(len=53), allocatable :: dec2bin(:)
-        double precision, allocatable   :: basis_sz(:), Sz_basis(:), S_z_target(:)
+        double precision, allocatable   :: basis_sz(:)
+        double precision, allocatable, intent(out) :: Sz_basis(:)
         integer :: N_spin_max, i, j, info, N, interator
-        integer, allocatable, intent(out) ::  hash(:)
-        integer, allocatable :: basis(:), indices_Sz_basis_sorted(:), basis_vector(:,:), basis_vector_reversed(:,:)
+        integer, allocatable, intent(out) :: basis_vector(:,:)
+        integer, allocatable :: basis(:), indices_Sz_basis_sorted(:)
         logical :: bool
         CHARACTER*1 :: id
         character(len=53)             :: tmp
@@ -121,8 +126,7 @@ module spin_systems
         allocate (Sz_basis(N_spin_max))
         allocate (basis(N_spin_max))
         allocate (dec2bin(N_spin_max))
-        allocate (indices_Sz_basis_sorted(N_spin_max))
-        allocate (basis_vector(N_spin_max, N_spin),  basis_vector_reversed(N_spin_max, N_spin))
+        allocate (basis_vector(N_spin_max, N_spin))
 
         ! only for visualization of the basis by 0 and 1 combinations
         if (N_spin <= 10) then
@@ -164,7 +168,7 @@ module spin_systems
                     ! this basis_vector is used for truncating basis for reduced density matrices 
                     basis_vector(i + 1, N_spin - j) = 1
                 else
-                    write(*,*) 'something wrong'
+                    write(*,*) 'something during basis creation wrong'
                     error stop
                 end if  
             end do    
@@ -185,16 +189,25 @@ module spin_systems
             write(*,*) Sz_basis(i)
         end do
 
-        allocate(hash(N_spin_max), S_z_target(N_spin_max))
+        deallocate(basis)
 
-        S_z_target = Sz_basis
+    end subroutine H_create_basis_sz
 
-        write(*,*) 'Sorted Sz target basis: '
-        write(*,*) S_z_target
+    subroutine Hash_basis_with_target(N_spin, target_sz, Sz_basis, basis_vector, hash, basis_rho_target)
+        implicit none 
 
+        integer, intent(in) :: target_sz, N_spin, basis_vector(:,:)
+        double precision, intent(in) :: Sz_basis(:)
+        integer, allocatable, intent(out) :: hash(:)
+        integer, allocatable, intent(out) :: basis_rho_target(:,:)
+        integer :: N, i,j, N_spin_max, max_val_hash_loc, min_val_hash_loc, max_val_hash
+
+        N_spin_max = 2**N_spin
+        allocate(hash(N_spin_max))
+        
         N = 1
         do i = 1, N_spin_max
-            if (S_z_target(i) == target_sz) then
+            if (Sz_basis(i) == target_sz) then
                 !Sz_basis_target(i) = i
                 !Sz_basis_target(N) = i
                 hash(i) = N  
@@ -207,10 +220,33 @@ module spin_systems
         write(*,*) 'Hash:'
         write(*,*) hash
 
-        !deallocate(Sz_basis, indices_Sz_basis_sorted, S_z_target)
-        deallocate(Sz_basis, S_z_target)
+        max_val_hash_loc = MAXLOC(hash, dim = 1)
+        min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
+        max_val_hash = MAXVAl(hash)
 
-    end subroutine H_create_basis_sz_with_target
+        allocate(basis_rho_target(max_val_hash, N_spin))
+
+        do i = 1, N_spin_max 
+                if (hash(i) > 0) then
+                    basis_rho_target(hash(i),:) = basis_vector(i,:)
+                else if (hash(i) <= 0) then 
+                    continue 
+                else 
+                    write(*,*) 'something wrong during hashing reduced basis procedure'
+                    error stop
+                end if 
+        end do 
+
+        write(*,*) 'Hashed Basis vector 0 and 1: ' 
+        do i = 1, max_val_hash 
+           do j = 1, N_spin 
+              write(*,*), i, j, basis_rho_target(i,j)
+           end do 
+        end do
+        
+        write(*,*) "Size of basis rho target", size(basis_rho_target, 1)
+
+    end subroutine Hash_basis_with_target
 
     subroutine Create_permutation_matrix(N_spin_max, array_index, p_matrix)
         implicit none
@@ -1039,7 +1075,7 @@ module spin_systems
           !          call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_block_ij)
           !          H_full_block(hash(ind_i),hash(ind_j))= H_block_ij
            !     endif
-!
+    !
            ! end do
         !end do
        ! !$OMP END PARALLEL DO
@@ -1094,8 +1130,7 @@ module spin_systems
         close(22)
 
     end subroutine H_XXX_block_feast_vec_fill
-
-    
+ 
     subroutine H_XXX_feast_vec_diag(N_spin, no_of_nonzero)
         use omp_lib
         use mkl_vsl
@@ -1336,27 +1371,122 @@ module spin_systems
 
     end subroutine H_XXX_block_feast_vec_diag
 
-    !subroutine Basis_for_rho_reduced(spin_basis, size_of_sub_A, size_of_sub_B, new_basis)
-        !implicit none
+    subroutine Basis_for_rho_reduced(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, new_basis)
+        use math_functions
+        implicit none
         !calculate density matrix rho from eigenvector due according to the truncated basis 
           
-        !integer, intent(in) :: size_of_sub_A, size_of_sub_B
-        !character(len=*), intent(in) :: spin_basis
-        !character(len=*) :: subsystem_A, subsystem_B
-        !integer, allocatable, intent(out) :: new_basis(:,:)
+        integer, intent(in) :: size_of_sub_A, size_of_sub_B, N_spin
+        integer, allocatable, intent(in) :: basis_rho_target(:,:)
+        integer, allocatable :: subsystem_A(:,:), subsystem_B(:,:), subsystem_A_set(:,:), subsystem_B_set(:,:)
+        integer, dimension(2) :: new_entry
+        integer, dimension(:,:), allocatable, intent(out) :: new_basis
+        integer, dimension(:,:), allocatable :: k_A, k_B
+        integer :: i, j, k, l, index_new_basis_i, index_new_basis_j
+        logical :: found = .false.
+        logical :: is_present
         
-        !integer :: i, j, k, l
-        
+        ! here need to introduce this when you want divide subsystem not equally
+        ! basis_combination_A = 2**size_of_sub_A
+        ! basis_combination_B = 2**size_of_sub_B
+
+        allocate(subsystem_A(size(basis_rho_target, 1) , size_of_sub_A), subsystem_B(size(basis_rho_target, 1) , size_of_sub_B))
+        !allocate(new_basis(size(basis_rho_target, 1), size_of_sub_A))
         ! Calculate the bases of subsystems A and B
-        ! The `unique` function is a built-in function in Fortran that is used to remove duplicate elements from a list.
-       ! call unique(spin_basis(1:size_of_sub_A), subsystem_A)
-        !call unique(spin_basis(size_of_sub_B+1:), subsystem_B)
+
+        print *, "Size of basis rho target", size(basis_rho_target, 1)
+
+        do i = 1, size(basis_rho_target, 1)
+            subsystem_A(i , :) = basis_rho_target(i , 1:size_of_sub_A)
+            subsystem_B(i , :) = basis_rho_target(i , size_of_sub_B+1:N_spin)
+        end do
+
+        call RemoveDuplicates(subsystem_A, subsystem_A_set)
+        call RemoveDuplicates(subsystem_B, subsystem_B_set)
+    
+
+        !print*, size(subsystem_A_set, 1)
+        !print*, size(subsystem_B_set, 1)
+
+        do k = 1, size(basis_rho_target, 1)
+            !print*, subsystem_A(k , :)
+            !print*, subsystem_B(k , :)
+
+            call FindRowIndex(subsystem_A(k , :), subsystem_A_set, index_new_basis_i)
+            call FindRowIndex(subsystem_B(k , :), subsystem_B_set, index_new_basis_j)
+
+            print *, " i ",  index_new_basis_i
+            print *, " j ", index_new_basis_j
+
+            ! Check if (i,j) is in new_basis
+            is_present = .false.
+            do i = 1, size(new_basis, 1)
+                if (new_basis(i, 1) == index_new_basis_i .and. new_basis(i, 2) == index_new_basis_j) then
+                    is_present = .true.
+                    exit
+                end if
+            end do
+
+            if (.not. is_present) then
+                ! Append (i,j) to new_basis
+                new_entry = [index_new_basis_i, index_new_basis_j]
+                new_basis = reshape([new_basis, new_entry], [size(new_basis, 1) + 1, 2])
+            end if
+
+        end do 
         
-        ! Print the bases of subsystems A and B
+        ! print bases for subsystems 
+        print *, "Basis for whole rho:"
+        do i = 1, size(basis_rho_target, 1) 
+            do j = 1, N_spin
+                write(*,*), i, j, basis_rho_target(i,j)
+            end do 
+            print *, " "
+        end do 
+
+        print *, "Basis for subsystem A:"
+        do i = 1, size(basis_rho_target, 1)
+            do j = 1, size_of_sub_A
+                write(*,*), i, j, subsystem_A(i,j)
+            end do 
+            print *, " "
+        end do 
+
+        print *, "SET subsystem A :"
+        do i = 1, size(subsystem_A_set, 1)
+            do j = 1, size_of_sub_A
+                write(*,*), i, j, subsystem_A_set(i,j)
+            end do 
+            print *, " "
+        end do 
         
-        !print *, "Basis for subsystem A:", subsystem_A
-        !print *, "Basis for subsystem B:", subsystem_B
+        print *, "Basis for subsystem B:"
+        do i = 1, size(basis_rho_target, 1)
+            do j = 1, size_of_sub_B
+                write(*,*), i, j, subsystem_B(i,j)
+            end do 
+            print *, " "
+        end do
         
+        print *, "SET subsystem B :"
+        do i = 1, size(subsystem_B_set, 1)
+            do j = 1, size_of_sub_B
+                write(*,*), i, j, subsystem_B_set(i,j)
+            end do 
+            print *, " "
+        end do 
+
+        print *, "New basis indices : "
+        do i = 1, size(new_basis, 1)
+            do j = 1, size_of_sub_A
+                write(*,*), i, j, new_basis(i,j)
+            end do 
+            print *, " "
+        end do 
+
+
+        deallocate(subsystem_A, subsystem_B)
+
         ! Calculate the new basis
         
         !allocate(new_basis(size(subsystem_A), size(subsystem_B)))
@@ -1378,7 +1508,7 @@ module spin_systems
         !print *, "This is new basis:", new_basis
 
 
-    !end subroutine Basis_for_rho_reduced
+    end subroutine Basis_for_rho_reduced
 
     subroutine Entropy_calculation(size_reduced_basis, rho_reduced)
         !size_reduced_basis, rho_reduced

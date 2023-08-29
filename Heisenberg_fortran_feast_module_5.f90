@@ -379,17 +379,17 @@ module spin_systems
         end do
 
         !sorting
-        id = 'D'
+        !id = 'D'
         !dlasrt
-        call dlapst(id, N_spin_max, Sz_basis, Sz_basis_sorted, info ) !scalapack quicksort
+        !call dlapst(id, N_spin_max, Sz_basis, Sz_basis_sorted, info ) !scalapack quicksort
 
-        write(*,*) 'Indicies of Sorted Sz basis: '
-        do i=1,N_spin_max
-            write(*,*) Sz_basis_sorted(i)
-        end do
+        !write(*,*) 'Indicies of Sorted Sz basis: '
+        !do i=1,N_spin_max
+        !    write(*,*) Sz_basis_sorted(i)
+        !end do
 
-        write(*,*) 'Sorted Sz basis: '
-        write(*,*) Sz_basis(Sz_basis_sorted)
+        !write(*,*) 'Sorted Sz basis: '
+        !write(*,*) Sz_basis(Sz_basis_sorted)
       
 
         deallocate(Sz_basis, Sz_basis_sorted)
