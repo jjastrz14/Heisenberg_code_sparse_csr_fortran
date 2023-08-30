@@ -217,8 +217,8 @@ module spin_systems
             endif 
         end do 
 
-        write(*,*) 'Hash:'
-        write(*,*) hash
+        !write(*,*) 'Hash:'
+        !write(*,*) hash
 
         max_val_hash_loc = MAXLOC(hash, dim = 1)
         min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
@@ -237,12 +237,12 @@ module spin_systems
                 end if 
         end do 
 
-        write(*,*) 'Hashed Basis vector 0 and 1: ' 
-        do i = 1, max_val_hash 
-           do j = 1, N_spin 
-              write(*,*), i, j, basis_rho_target(i,j)
-           end do 
-        end do
+        !write(*,*) 'Hashed Basis vector 0 and 1: ' 
+        !do i = 1, max_val_hash 
+         !  do j = 1, N_spin 
+         !     write(*,*), i, j, basis_rho_target(i,j)
+         !  end do 
+        !end do
         
         write(*,*) "Size of basis rho target", size(basis_rho_target, 1)
 
@@ -794,7 +794,7 @@ module spin_systems
             write(10,*) i, ',', w(i) 
         end do
 
-        write(*,*) ' dfeast_scsrev eigenvectors to file :'
+        write(*,*) ' dsyevr eigenvectors to file :'
         ! saving of eigenvectors to file
         do i=1, m_eig
             do j=1, N_spin_max
@@ -1250,7 +1250,7 @@ module spin_systems
 
     end subroutine H_XXX_feast_vec_diag
 
-    subroutine H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash)
+    subroutine H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash, e, x)
         use omp_lib
         use mkl_vsl
         use tests_module
@@ -1260,7 +1260,8 @@ module spin_systems
         integer, allocatable, intent(in) :: hash(:)
         integer :: i, j, N_spin_max, info, m_eig, n, loop, m0, fpm(128), ja_temp, ia_temp, max_val_hash
         CHARACTER*1 :: uplo
-        double precision, allocatable :: values_array(:), x(:,:), e(:), res(:)
+        double precision, allocatable :: values_array(:), res(:)
+        double precision, allocatable, intent(out) :: x(:,:), e(:)
         integer, allocatable :: ia(:), ja(:)
         double precision :: emin, emax, epsout, norm, val_arr_temp
 
@@ -1320,8 +1321,8 @@ module spin_systems
         fpm(27) = 1 !check input matrices
         fpm(28) = 1 !check if B is positive definite?         
         uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
-        emin = -1.5d0 ! The lower ... &
-        emax =  1.5d0  !  and upper bounds of the interval to be searched for eigenvalues
+        emin = -10d0 ! The lower ... &
+        emax =  10d0  !  and upper bounds of the interval to be searched for eigenvalues
         m0 = max_val_hash !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n. 
         !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
@@ -1363,7 +1364,7 @@ module spin_systems
             write(32,*) i, norm
         end do
                     
-        deallocate(values_array, ia, ja, x, e, res)
+        deallocate(values_array, ia, ja, res)
         
         close(30)
         close(31)
@@ -1371,18 +1372,24 @@ module spin_systems
 
     end subroutine H_XXX_block_feast_vec_diag
 
-    subroutine Basis_for_rho_reduced(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, new_basis)
+    subroutine Rho_reduced_calculation(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, eigen_vectors, index_energy, rho_reduced)
         use math_functions
         implicit none
         !calculate density matrix rho from eigenvector due according to the truncated basis 
           
         integer, intent(in) :: size_of_sub_A, size_of_sub_B, N_spin
         integer, allocatable, intent(in) :: basis_rho_target(:,:)
+        double precision, dimension(:,:), allocatable, intent(in):: eigen_vectors
+        integer, intent(in) :: index_energy
+        double precision, dimension(:,:), allocatable, intent(out) :: rho_reduced
+
+        double precision, dimension(:,:), allocatable :: psi
         integer, allocatable :: subsystem_A(:,:), subsystem_B(:,:), subsystem_A_set(:,:), subsystem_B_set(:,:)
         integer, dimension(2) :: new_entry
-        integer, dimension(:,:), allocatable, intent(out) :: new_basis
+        integer, dimension(:,:), allocatable :: new_basis_rho_reduced
         integer, dimension(:,:), allocatable :: k_A, k_B
         integer :: i, j, k, l, index_new_basis_i, index_new_basis_j
+        double precision :: v, trace
         logical :: found = .false.
         logical :: is_present
         
@@ -1391,10 +1398,10 @@ module spin_systems
         ! basis_combination_B = 2**size_of_sub_B
 
         allocate(subsystem_A(size(basis_rho_target, 1) , size_of_sub_A), subsystem_B(size(basis_rho_target, 1) , size_of_sub_B))
-        !allocate(new_basis(size(basis_rho_target, 1), size_of_sub_A))
-        ! Calculate the bases of subsystems A and B
+        allocate(new_basis_rho_reduced(size(basis_rho_target, 1), 2)) !only i and j indicies
 
-        print *, "Size of basis rho target", size(basis_rho_target, 1)
+        ! Calculate the bases of subsystems A and B
+        !print *, "Size of basis rho target", size(basis_rho_target, 1)
 
         do i = 1, size(basis_rho_target, 1)
             subsystem_A(i , :) = basis_rho_target(i , 1:size_of_sub_A)
@@ -1404,169 +1411,223 @@ module spin_systems
         call RemoveDuplicates(subsystem_A, subsystem_A_set)
         call RemoveDuplicates(subsystem_B, subsystem_B_set)
     
-
         !print*, size(subsystem_A_set, 1)
         !print*, size(subsystem_B_set, 1)
+
+        !subsystem_A_set(1,1) = 0
+        !subsystem_A_set(1,2) = 1
+
+        !subsystem_A_set(2,1) = 0
+        !subsystem_A_set(2,2) = 0
+
+        !subsystem_A_set(3,1) = 1
+        !subsystem_A_set(3,2) = 0
+
+        !subsystem_B_set(1,1) = 0
+        !subsystem_B_set(1,2) = 0
+
+        !subsystem_B_set(2,1) = 0
+        !subsystem_B_set(2,2) = 1
+
+        !subsystem_B_set(3,1) = 1
+        !subsystem_B_set(3,2) = 0
+        
 
         do k = 1, size(basis_rho_target, 1)
             !print*, subsystem_A(k , :)
             !print*, subsystem_B(k , :)
 
-            call FindRowIndex(subsystem_A(k , :), subsystem_A_set, index_new_basis_i)
+            call FindRowIndex(subsystem_A(k , :), subsystem_A_set, index_new_basis_i) !working
             call FindRowIndex(subsystem_B(k , :), subsystem_B_set, index_new_basis_j)
 
-            print *, " i ",  index_new_basis_i
-            print *, " j ", index_new_basis_j
+            !print *, " i ",  index_new_basis_i
+            !print *, " j ", index_new_basis_j
 
-            ! Check if (i,j) is in new_basis
-            is_present = .false.
-            do i = 1, size(new_basis, 1)
-                if (new_basis(i, 1) == index_new_basis_i .and. new_basis(i, 2) == index_new_basis_j) then
-                    is_present = .true.
-                    exit
-                end if
-            end do
-
-            if (.not. is_present) then
-                ! Append (i,j) to new_basis
-                new_entry = [index_new_basis_i, index_new_basis_j]
-                new_basis = reshape([new_basis, new_entry], [size(new_basis, 1) + 1, 2])
-            end if
+           ! Calculate indicies for the new basis of rho reduced
+            new_basis_rho_reduced(k,1) = index_new_basis_i
+            new_basis_rho_reduced(k,2) = index_new_basis_j
 
         end do 
-        
+
         ! print bases for subsystems 
-        print *, "Basis for whole rho:"
-        do i = 1, size(basis_rho_target, 1) 
-            do j = 1, N_spin
-                write(*,*), i, j, basis_rho_target(i,j)
-            end do 
-            print *, " "
-        end do 
+        !print *, "Basis for whole rho:"
+        !do i = 1, size(basis_rho_target, 1) 
+         !   do j = 1, N_spin
+         !       write(*,*), i, j, basis_rho_target(i,j)
+         !   end do 
+         !   print *, " "
+        !end do 
 
-        print *, "Basis for subsystem A:"
-        do i = 1, size(basis_rho_target, 1)
-            do j = 1, size_of_sub_A
-                write(*,*), i, j, subsystem_A(i,j)
-            end do 
-            print *, " "
-        end do 
+        !print *, "Basis for subsystem A:"
+        !do i = 1, size(basis_rho_target, 1)
+        !    do j = 1, size_of_sub_A
+        !       write(*,*), i, j, subsystem_A(i,j)
+         !   end do 
+        !    print *, " "
+        !end do 
 
-        print *, "SET subsystem A :"
-        do i = 1, size(subsystem_A_set, 1)
-            do j = 1, size_of_sub_A
-                write(*,*), i, j, subsystem_A_set(i,j)
-            end do 
-            print *, " "
-        end do 
+       ! print *, "SET subsystem A :"
+        !do i = 1, size(subsystem_A_set, 1)
+        !    do j = 1, size_of_sub_A
+         !      write(*,*), i, j, subsystem_A_set(i,j)
+        !    end do 
+        !    print *, " "
+        !end do 
         
-        print *, "Basis for subsystem B:"
-        do i = 1, size(basis_rho_target, 1)
-            do j = 1, size_of_sub_B
-                write(*,*), i, j, subsystem_B(i,j)
-            end do 
-            print *, " "
-        end do
+        !print *, "Basis for subsystem B:"
+        !do i = 1, size(basis_rho_target, 1)
+         !   do j = 1, size_of_sub_B
+         !       write(*,*), i, j, subsystem_B(i,j)
+         !   end do 
+        !   print *, " "
+        !end do
         
-        print *, "SET subsystem B :"
-        do i = 1, size(subsystem_B_set, 1)
-            do j = 1, size_of_sub_B
-                write(*,*), i, j, subsystem_B_set(i,j)
-            end do 
-            print *, " "
-        end do 
+       ! print *, "SET subsystem B :"
+        !do i = 1, size(subsystem_B_set, 1)
+        !    do j = 1, size_of_sub_B
+        !       write(*,*), i, j, subsystem_B_set(i,j)
+        !    end do 
+        !   print *, " "
+        !end do 
 
-        print *, "New basis indices : "
-        do i = 1, size(new_basis, 1)
-            do j = 1, size_of_sub_A
-                write(*,*), i, j, new_basis(i,j)
-            end do 
-            print *, " "
-        end do 
-
+        !print *, "New basis indices : "
+        !do i = 1, size(new_basis_rho_reduced, 1)
+        !    do j = 1, 2
+         !       write(*,*), i, j, new_basis_rho_reduced(i,j)
+         !   end do 
+         !   print *, " "
+        !end do 
 
         deallocate(subsystem_A, subsystem_B)
 
-        ! Calculate the new basis
-        
-        !allocate(new_basis(size(subsystem_A), size(subsystem_B)))
-        
-        !do i = 1, size(subsystem_A)
-         !   do j = 1, size(subsystem_B)
-          !  k = index(spin_basis, subsystem_A(i) // subsystem_B(j))
-           ! if (k > 0) then
-            !    l = index(new_basis, (i, j))
-             !   if (l == 0) then
-              !  new_basis(l, :) = (i, j)
-               ! end if
-           ! end if
-           ! end do
-        !end do
-        
-        ! Print the new basis
-        
-        !print *, "This is new basis:", new_basis
+        !create psi 
+        allocate(psi(size(subsystem_A_set,1), size(subsystem_B_set,1)))
+        psi = 0.0d0
 
+        !print*, eigen_vectors(:,index_energy)
 
-    end subroutine Basis_for_rho_reduced
+        do k = 1, size(eigen_vectors(:,index_energy))
+        
 
-    subroutine Entropy_calculation(size_reduced_basis, rho_reduced)
+            v = eigen_vectors(k,index_energy)
+            !print *, "This is value of psi ", v
+
+            psi(new_basis_rho_reduced(k,1) , new_basis_rho_reduced(k, 2)) = v
+
+        end do 
+
+        ! print*, "this is psi for index_energy", index_energy
+        ! do i = 1, size(psi, 1)
+        !   do j = 1, size(psi, 2)
+        !       write(*,*), i, j, psi(i,j)
+        !   end do 
+        !end do 
+
+        allocate(rho_reduced(size(psi,1),size(psi,1)))
+        rho_reduced = 0.0d0
+        
+        ! for complex psi it should be also psi.conj 
+        ! numpy dot product of 2 matrices from python is a matmul 
+        !print *, "Rho reduced calculation: "
+        rho_reduced = MATMUL(psi, transpose(psi))
+
+        !trace of rho_reduced check
+        trace = 0.0d0
+        do i = 1, size(rho_reduced, 1)
+            trace = trace + rho_reduced(i,i)
+        end do
+
+        !do i = 1, size(rho_reduced, 1)
+         !   do j = 1, size(rho_reduced, 2)
+         !       write(*,*), i, j, rho_reduced(i,j)
+         !   end do 
+      ! end do 
+
+        if (.not. (.9999999999999d0 <= trace .and. trace <= 1.000000000001d0)) then
+            print*, "Trace of the reduced density matrix is not equal to 1 ! : ", trace 
+        end if 
+
+    end subroutine Rho_reduced_calculation
+
+    subroutine Entropy_calculation(systemA_size, size_reduced_basis, rho_reduced, entropy_value, eigen_value_check)
         !size_reduced_basis, rho_reduced
         implicit none
         !calculate entropy according to reduced density matrix and normalazing it due to the truncated basis
         ! diagonalize reduced density matrix using LAPACK, check if its symmetric!
 
-        integer, intent(in) :: size_reduced_basis
-        double precision, allocatable, intent(in) :: rho_reduced
-        double precision :: entropy_value
-        integer :: ind_i
+        integer, intent(in) :: size_reduced_basis, systemA_size
+        double precision, allocatable, intent(in) :: rho_reduced(:,:)
+        double precision, intent(out):: entropy_value, eigen_value_check
+        integer :: ind_i, i
 
-        !for diagonalization
-        CHARACTER*1 :: jobz, range, uplo
-        integer :: il, iu, ldz, liwork, lwork, info, m_eig
+        !diagonalization of non-symmetric reduced rho (reduced density matrix) using dgees from intem MKL
+        CHARACTER*1 :: jobvs, sort
+        integer :: il, iu, lda,ldvs, liwork, lwork, info, m_eig, n
         double precision :: vl, vu, abstol
-        double precision, allocatable :: work(:), eigen_vec(:,:)
+        double precision, allocatable :: work(:), eigen_vec(:,:), vs(:)
         integer, allocatable :: iwork(:), isuppz(:)
-        double precision, allocatable :: eigen_values(:)
+        double precision, allocatable :: eigen_values_r(:), eigen_values_c(:)
+        logical :: bwork, select
 
-        write(*,*) 'Rho_reduced matrix diagonalization'
-        write(*,*) 'check for bigger N if lower and upper bound for eigenvalues is correctly set'
-        jobz  = 'V' !Compute eigenvalues and eigenvectors.
-        range = 'I' !IL-th through IU-th eigenvalues will be found
-        uplo  = 'U' !Upper triangle of A is stored;
-        !N_mat = N_spin_max ! The order of the matrix
-        vl     = -30.0d0 ! lower bound of eigenvalues (for range='V')
-        vu     = 30.0d0  ! upper bound of eigenvalues (for range='V')
+        !write(*,*) 'Rho_reduced matrix diagonalization'
+        !write(*,*) 'check for bigger N if lower and upper bound for eigenvalues is correctly set'
+        jobvs = 'N' !Compute eigenvalues and eigenvectors, NOT compute Shur vectors
+        sort = 'N' !Do not sort eigenvalues
+        n = size_reduced_basis ! The order of the matrix
+        !vl     = -30.0d0 ! lower bound of eigenvalues (for range='V')
+        !vu     = 30.0d0  ! upper bound of eigenvalues (for range='V')
         il     = 1  !the index of the smallest eigenvalue to be returned.
         iu     = size_reduced_basis !the index of the largest eigenvalue to be returned.
         abstol = 10**(-10.0d0)
-        ldz    = size_reduced_basis
-        lwork  = 26*size_reduced_basis
+        lda    = size_reduced_basis
+        ldvs   = size_reduced_basis
+        lwork  = 10*size_reduced_basis
         liwork = 10*size_reduced_basis
 
-        allocate ( eigen_values(size_reduced_basis), eigen_vec(size_reduced_basis,size_reduced_basis), isuppz(2*size_reduced_basis), work(lwork), iwork(liwork) )
-        write(*,*) 'just before allocation'
-       
-        call dsyevr(jobz, range, uplo, size_reduced_basis, rho_reduced, size_reduced_basis, vl, vu, il, iu, abstol, m_eig, eigen_values, eigen_vec, size_reduced_basis, isuppz, work, lwork, iwork, liwork, info)
-        write(*,*) "general zheevr info:", info
-        write(*,*) lwork, " vs optimal lwork:", work(1)
-        write(*,*) "number of eigeval found:", m_eig
- 
+        allocate ( eigen_values_r(size_reduced_basis), eigen_values_c(size_reduced_basis), eigen_vec(size_reduced_basis,size_reduced_basis), work(lwork), iwork(liwork) )
+        !write(*,*) 'just before allocation'
+        ! NOTICE WRONG PROCEDURE: RHEDUCED RHO ARE NON SYMMETRIC SO USE whole array diagonalization method
+        ! now dgees is good
+        call dgees(jobvs, sort, select, n, rho_reduced, lda, m_eig, eigen_values_r, eigen_values_c, vs, ldvs, work, lwork, bwork, info)
 
-        ! Entropy calculation
-        entropy_value = 0.0d0
+        !call gees(rho_reduced, eigen_values_r, eigen_values_c, [,vs] [,select] [,sdim] [,info])
 
-        do ind_i = 1, size_reduced_basis
-            if (eigen_values(ind_i) <= 10E-8) then 
-                entropy_value = entropy_value + 0.0d0
-            else if (eigen_values(ind_i) == 1.0d0 ) then
-                entropy_value = entropy_value + 0.0d0
-            else 
-                entropy_value = entropy_value -(eigen_values(ind_i) * LOG(eigen_values(ind_i)))
+        !dsyevx(jobz, range, uplo, n, a, lda, vl, vu, il, iu, abstol, m, w, z, ldz, work, lwork, iwork, ifail, info)
+        !call dsyevr(jobz, range, uplo, size_reduced_basis, rho_reduced, size_reduced_basis, vl, vu, il, iu, abstol, m_eig, eigen_values, eigen_vec, size_reduced_basis, isuppz, work, lwork, iwork, liwork, info)
+        !write(*,*) "general zheevr info:", info
+        !write(*,*) lwork, " vs optimal lwork:", work(1)
+        write(*,*) "number of eigeval found in rho_reduced diag:", size(eigen_values_r, 1)
+
+        !write(*,*) "eigenvalues of rho", eigen_values_r
+        !write(*,*) " This is real eigenvalues part ", eigen_values_r
+
+        do i = 1, m_eig
+            if (.not. (.00000000d0 <= eigen_values_c(i) .and. eigen_values_c(i) <= 0.000000000001d0)) then
+                print*, "Non zero complex eigenvalue in rho_reduced ", eigen_values_c(i)
             end if 
         end do 
 
-        write(*,*) "This is entropy for this energy", entropy_value
+        ! Entropy calculation
+        entropy_value = 0.0d0
+        eigen_value_check = 0.0d0
+
+        do ind_i = 1, size(eigen_values_r, 1)
+            if (eigen_values_r(ind_i) <= 10E-8) then 
+                entropy_value = entropy_value + 0.0d0
+            else if (eigen_values_r(ind_i) == 1.0d0 ) then
+                entropy_value = entropy_value + 0.0d0
+            else 
+                entropy_value = entropy_value -(eigen_values_r(ind_i) * (log(eigen_values_r(ind_i))/log(2.)))
+                eigen_value_check =  eigen_value_check + eigen_values_r(ind_i)
+            end if 
+        end do 
+
+        !entropy_value = entropy_value
+        entropy_value = entropy_value/(dble(systemA_size)*log(dble(systemA_size))/log(2.0))
+
+        !write(*,*), "This is lambdas value check: ", eigen_value_check
+        !write(*,*) "This is entropy for this energy", entropy_value
+        !write(*,*) "This is entropy for this energy normalized", entropy_value/(dble(systemA_size)*log(dble(systemA_size))/log(2.0))
     
     end subroutine Entropy_calculation
 

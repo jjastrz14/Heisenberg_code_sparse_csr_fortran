@@ -6,12 +6,13 @@ program spin_code
     use math_functions
     implicit none
 
-    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i
-    double precision :: J_spin 
+    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i, k, target_sz_spin
+    double precision :: J_spin, entropy_value, eigen_value_check
     character(len = 12) :: N_spin_char, J_spin_char
-    character(len=53) :: dec2bin, spin_basis
+    character(len=53) :: dec2bin, spin_basis, file_name1
     integer, allocatable :: hash(:), indices_Sz_basis_sorted(:), target_sz(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
-    double precision, allocatable :: Sz_basis(:)
+    double precision, allocatable :: Sz_basis(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
+
 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
     ! tworzenie bazy i s_z działa
@@ -46,9 +47,9 @@ program spin_code
     write(*,*) ' '
 
     !call mmm_csr_test()
-    call omp_mkl_small_test()
-    call sparse_dfeast_test()
-    call test_permutation_H_for_4_sites()
+    !call omp_mkl_small_test()
+    !call sparse_dfeast_test()
+    !call test_permutation_H_for_4_sites()
 
     write(*,*) '------- START Heisenberg Program -------'
     N_spin_max = 2**N_spin 
@@ -66,40 +67,53 @@ program spin_code
     
     !creating a basis for N_spin system and whole basis vector -> 0000, 0001
     call H_create_basis_sz(N_spin, Sz_basis, basis_vector)
+
+    file_name1 = 'Entropy_results_' // trim(adjustl(N_spin_char)) // '_equal_div.dat'
+    open (unit=1, file= trim(file_name1), recl=512)
+    write(1,*), "# Eigenvalue     Entropie    Spin_z    Sum_of_lambdas"
     
-    ! here put loop for whole target_sz
-    call Hash_basis_with_target(N_spin, target_sz(2), Sz_basis, basis_vector, hash, basis_rho_target)
+    do k = 1, size(target_sz, 1)
+        target_sz_spin = target_sz(k)
 
-    ! calulacting basis for subsystems A and B 
+                ! here put loop for whole target_sz
+                call Hash_basis_with_target(N_spin, target_sz_spin , Sz_basis, basis_vector, hash, basis_rho_target)
+                print *, "Chosen target of Sz: ", target_sz_spin
 
-    call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
-    call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
-    call H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash)
+                ! calulacting basis for subsystems A and B 
 
-    !spin_basis = dec2bin
-    size_of_sub_A = int(N_spin/2)
-    size_of_sub_B = int(N_spin - size_of_sub_A)
-    print *, "Size of subsystem A", size_of_sub_A
-    print *, "Size of subsystem B", size_of_sub_B
+                ! call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
+                call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
+                call H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
 
-    call Basis_for_rho_reduced(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, new_basis)
+                !spin_basis = dec2bin
+                size_of_sub_A = int(N_spin/2)
+                size_of_sub_B = int(N_spin - size_of_sub_A)
+                print *, "Size of subsystem A", size_of_sub_A
+                print *, "Size of subsystem B", size_of_sub_B
+                print *, " "
 
-    deallocate(Sz_basis, basis_vector, new_basis)
+            
+                do i = 1, size(eigen_values, 1)
+                    call Rho_reduced_calculation(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, eigen_vectors, i, rho_reduced)
+                    call  Entropy_calculation(size_of_sub_A, size(rho_reduced, 1), rho_reduced, entropy_value, eigen_value_check)
 
-    !call Basis_for_rho_reduced(spin_basis, size_of_sub_A, size_of_sub_B, new_basis)
+                    !print*, "This is entropy value for:"
+                    !print*, "Spin Z = ", target_sz_spin
+                    !print*, "Eigenvalue = ", eigen_values(i)
+                    !print*, "Entropy normalised = ", entropy_value
+                    !print*, "Lambdas check if 1.0 = ", eigen_value_check
 
-    !steps: generuj macierze dla kazdego spinu i porównaj z pythonem - dziala 
+                    write(1,*) eigen_values(i), ',' , entropy_value, ',',  target_sz_spin, ',', eigen_value_check
+                end do 
 
-    ! call CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, indices_Sz_basis_sorted)
+    end do 
+    
+    close(1)
+ 
 
-    ! diagonalization using LAPACK from intel 
-    !call H_XXX_diag(N_spin, J_spin)
+    deallocate(Sz_basis, basis_vector)
 
-    !call test_permutation_H_for_4_sites()
+    write(*,*) "Program executed with success"
 
-    ! diagonalization via FEAST algorithm (saving CSR matrices to file right now)
-    !call sparse_dfeast_test()
-    !call H_XXX_feast_vec_fill(N_spin, J_spin, no_of_nonzero)
-    !call H_XXX_feast_vec_diag(N_spin, no_of_nonzero)
 
 end program spin_code
