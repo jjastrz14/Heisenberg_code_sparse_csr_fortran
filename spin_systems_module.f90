@@ -1046,10 +1046,13 @@ module spin_systems
         integer, intent(out) :: no_of_nonzero
         integer :: i, j, ind_i, ind_j,  N_spin_max, counter, ind_ia, max_val_hash_loc , min_val_hash_loc, max_val_hash    
         double precision :: norm, H_block_ij
+        CHARACTER(len=10) :: N_spin_charachter
 
-        open (unit=20, file="ia_h_block.dat", recl=512)
-        open (unit=21, file="ja_h_block.dat", recl=512)
-        open (unit=22, file="values_array_h_block.dat", recl=512)
+        write(N_spin_charachter, '(i0)') N_spin
+
+        open (unit=20, file='ia_h_block' // trim(adjustl(N_spin_charachter)) // '.dat', recl=512)
+        open (unit=21, file='ja_h_block' // trim(adjustl(N_spin_charachter)) // '.dat', recl=512)
+        open (unit=22, file='values_array_h_block' // trim(adjustl(N_spin_charachter)) // '.dat', recl=512)
   
         ! N spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
 
@@ -1061,11 +1064,11 @@ module spin_systems
         max_val_hash = MAXVAl(hash)
 
         write(*,*) 'max val hash', max_val_hash
-        write(*,*) 'max val hash location', max_val_hash_loc
-        write(*,*) 'min val hash location', min_val_hash_loc
+        !write(*,*) 'max val hash location', max_val_hash_loc
+        !write(*,*) 'min val hash location', min_val_hash_loc
 
         !!! H_full filling
-        write(*,*) 'H block feast vector fillings for target :'
+        !write(*,*) 'H block feast vector fillings for target :'
           
         ! !$OMP PARALLEL DO
         !do ind_i = 1, N_spin_max
@@ -1286,9 +1289,9 @@ module spin_systems
         allocate( values_array(no_of_nonzero), ia(max_val_hash+1), ja(no_of_nonzero) )
         
         !reading of exsisting files
-        open (unit=20, file="ia_h_block.dat", recl=512)
-        open (unit=21, file="ja_h_block.dat", recl=512)
-        open (unit=22, file="values_array_h_block.dat", recl=512)
+        open (unit=20, file='ia_h_block' // trim(adjustl(N_spin_charachter)) // '.dat', recl=512)
+        open (unit=21, file='ja_h_block' // trim(adjustl(N_spin_charachter)) // '.dat', recl=512)
+        open (unit=22, file='values_array_h_block' // trim(adjustl(N_spin_charachter)) // '.dat', recl=512)
   
         
         do i=1, max_val_hash+1           
@@ -1328,7 +1331,7 @@ module spin_systems
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
         n = max_val_hash
         allocate( x(n,m0), e(m0), res(m0) )
-        write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+        !write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
         write(*,*) 'Before dfeast_scsrev... '
         call dfeast_scsrev(uplo, n, values_array, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m_eig, res, info)
         write(*,*) 'eps_out= ', epsout

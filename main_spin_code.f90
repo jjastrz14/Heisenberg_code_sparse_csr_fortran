@@ -61,6 +61,7 @@ program spin_code
     end do 
 
     print *, "All combination of S_z spin", target_sz
+    write(*,*) " "
     
 
     ! call H_create_basis_sz_sorted(N_spin, indices_Sz_basis_sorted)
@@ -75,7 +76,7 @@ program spin_code
     
     print*, "Entering main loop of the program"
                 !spin_basis = dec2bin
-    size_of_sub_A = int(N_spin/2)
+    size_of_sub_A = int(N_spin/2) !equally divided A and B systems
     size_of_sub_B = int(N_spin - size_of_sub_A)
     print *, "Size of subsystem A", size_of_sub_A
     print *, "Size of subsystem B", size_of_sub_B
@@ -107,20 +108,19 @@ program spin_code
                 !print*, "Eigenvalue = ", eigen_values(i)
                 !print*, "Entropy normalised = ", entropy_value
                 !print*, "Lambdas check if 1.0 = ", eigen_value_check
-
                 write(1,*) eigen_values(i), ',' , entropy_value, ',',  target_sz_spin, ',', eigen_value_check
 
             end do 
 
             deallocate(hash, basis_rho_target, eigen_values, eigen_vectors, rho_reduced)
             print *, "Finished for ", target_sz_spin
+            print *, " "
     end do 
     
     close(1)
- 
-
     deallocate(Sz_basis, basis_vector, target_sz, indices_Sz_basis_sorted)
 
+    write(*,*) " "
     write(*,*) "Program executed with success"
     write(*,*) '------- END Heisenberg Program -------'
 

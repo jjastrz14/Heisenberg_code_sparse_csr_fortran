@@ -500,18 +500,18 @@ module tests_module
         !permutating as P @ H @ P.T
         call mmm_mat_mul(H_permuted, dble(p_matrix), H_full, dble(p_matrix), 'n', 'n', 't')
 
-        write(*,*) 'H matrix indicies for 4 sites: '
-        do i = 1, N_spin_max
-            do j = 1, N_spin_max
+        !write(*,*) 'H matrix indicies for 4 sites: '
+        !do i = 1, N_spin_max
+           ! do j = 1, N_spin_max
 
-            print *,  i, j, H_permuted(i,j)
+            !print *,  i, j, H_permuted(i,j)
 
-            enddo 
-        enddo 
+            !enddo 
+        !enddo 
 
         write(*,*) 'H matrix for 4 sites: '
         do i = 1, N_spin_max
-            do j = 1, N_spin_max
+           do j = 1, N_spin_max
 
                 write(*, '(I2,X)', advance='no'), H_permuted(i,j)
 
