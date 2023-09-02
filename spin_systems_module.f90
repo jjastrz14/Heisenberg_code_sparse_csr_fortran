@@ -621,7 +621,7 @@ module spin_systems
 
         H_full_ij = 0.0d0
                            
-        do site_ind = 1, (N_spin-1)
+        do site_ind = 1, (N_spin-1) !here change for searching through the adjacency matrix for graphs
             m = 2**(site_ind-1)
             n = m
             p = 4 ! N_spin independent because this referes to S+S- operator for spin 1/2 
@@ -1065,7 +1065,7 @@ module spin_systems
         write(*,*) 'min val hash location', min_val_hash_loc
 
         !!! H_full filling
-        write(*,*) 'H block feast filling for target :'
+        write(*,*) 'H block feast vector fillings for target :'
           
         ! !$OMP PARALLEL DO
         !do ind_i = 1, N_spin_max
@@ -1271,13 +1271,13 @@ module spin_systems
         !Write the integer into a string:
         write(N_spin_charachter, '(i0)') N_spin
 
-        file_name1 = 'H_eigenvals_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
-        file_name2 = 'H_eigenvectors_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
-        file_name3 = 'H_norm_test_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
+       ! file_name1 = 'H_eigenvals_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
+        !file_name2 = 'H_eigenvectors_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
+        !file_name3 = 'H_norm_test_feast_' // trim(adjustl(N_spin_charachter)) // '.dat'
 
-        open (unit=30, file= trim(file_name1), recl=512)
-        open (unit=31, file=trim(file_name2), recl=512)
-        open (unit=32, file= trim(file_name3) , recl=512)
+        !open (unit=30, file= trim(file_name1), recl=512)
+        !open (unit=31, file=trim(file_name2), recl=512)
+        !open (unit=32, file= trim(file_name3) , recl=512)
 
         !FEAST diagonalization
         ! we need to store diagonal zeros as well !!!
@@ -1321,8 +1321,8 @@ module spin_systems
         fpm(27) = 1 !check input matrices
         fpm(28) = 1 !check if B is positive definite?         
         uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
-        emin = -10d0 ! The lower ... &
-        emax =  10d0  !  and upper bounds of the interval to be searched for eigenvalues
+        emin = -15d0 ! The lower ... &
+        emax =  6d0  !  and upper bounds of the interval to be searched for eigenvalues
         m0 = max_val_hash !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n. 
         !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
@@ -1341,34 +1341,34 @@ module spin_systems
         end if 
         
         write(*,*) ' dfeast_scsrev eigenvalues found= ', m_eig
-        write(30,*) 'i-th , eigenvalue'
-        do i = 1 , m_eig
-            write(30,*) i, ',' , e(i)
-        end do
+        !write(30,*) 'i-th , eigenvalue'
+        !do i = 1 , m_eig
+           ! write(30,*) i, ',' , e(i)
+        !end do
         
-        write(*,*) ' dfeast_scsrev eigenvectors to file :'
+        !write(*,*) ' dfeast_scsrev eigenvectors to file :'
         ! saving of eigenvectors to file
-        do i=1, m_eig
-            do j=1, n
-                write(31,*) x(j,i)
-            end do
-            write(31,*) " "
-        end do
+        !do i=1, m_eig
+           ! do j=1, n
+            !    write(31,*) x(j,i)
+            !end do
+            !write(31,*) " "
+        !end do
 
-        write(*,*) ' dfeast_scsrev eigenvec norm:'
-        do i=1, m_eig
-            norm = 0.0d0
-            do j=1, n
-                norm = norm + x(j,i)*(x(j,i))
-            end do
-            write(32,*) i, norm
-        end do
+        !write(*,*) ' dfeast_scsrev eigenvec norm:'
+        !do i=1, m_eig
+            !norm = 0.0d0
+            !do j=1, n
+             !   norm = norm + x(j,i)*(x(j,i))
+            !end do
+            !write(32,*) i, norm
+        !end do
                     
         deallocate(values_array, ia, ja, res)
         
-        close(30)
-        close(31)
-        close(32)
+        !close(30)
+        !close(31)
+        !close(32)
 
     end subroutine H_XXX_block_feast_vec_diag
 
@@ -1511,7 +1511,6 @@ module spin_systems
 
             v = eigen_vectors(k,index_energy)
             !print *, "This is value of psi ", v
-
             psi(new_basis_rho_reduced(k,1) , new_basis_rho_reduced(k, 2)) = v
 
         end do 
@@ -1529,6 +1528,7 @@ module spin_systems
         ! for complex psi it should be also psi.conj 
         ! numpy dot product of 2 matrices from python is a matmul 
         !print *, "Rho reduced calculation: "
+        ! this is |psi> <psi| = rho
         rho_reduced = MATMUL(psi, transpose(psi))
 
         !trace of rho_reduced check
@@ -1543,7 +1543,7 @@ module spin_systems
          !   end do 
       ! end do 
 
-        if (.not. (.9999999999999d0 <= trace .and. trace <= 1.000000000001d0)) then
+        if (.not. (.999999999d0 <= trace .and. trace <= 1.000000001d0)) then
             print*, "Trace of the reduced density matrix is not equal to 1 ! : ", trace 
         end if 
 
@@ -1596,7 +1596,7 @@ module spin_systems
         !call dsyevr(jobz, range, uplo, size_reduced_basis, rho_reduced, size_reduced_basis, vl, vu, il, iu, abstol, m_eig, eigen_values, eigen_vec, size_reduced_basis, isuppz, work, lwork, iwork, liwork, info)
         !write(*,*) "general zheevr info:", info
         !write(*,*) lwork, " vs optimal lwork:", work(1)
-        write(*,*) "number of eigeval found in rho_reduced diag:", size(eigen_values_r, 1)
+        !write(*,*) "number of eigeval found in rho_reduced diag:", size(eigen_values_r, 1)
 
         !write(*,*) "eigenvalues of rho", eigen_values_r
         !write(*,*) " This is real eigenvalues part ", eigen_values_r
@@ -1617,13 +1617,13 @@ module spin_systems
             else if (eigen_values_r(ind_i) == 1.0d0 ) then
                 entropy_value = entropy_value + 0.0d0
             else 
-                entropy_value = entropy_value -(eigen_values_r(ind_i) * (log(eigen_values_r(ind_i))/log(2.)))
+                entropy_value = entropy_value -(eigen_values_r(ind_i) * (log(eigen_values_r(ind_i))))
                 eigen_value_check =  eigen_value_check + eigen_values_r(ind_i)
             end if 
         end do 
 
         !entropy_value = entropy_value
-        entropy_value = entropy_value/(dble(systemA_size)*log(dble(systemA_size))/log(2.0))
+        entropy_value = entropy_value/(dble(systemA_size)*log(dble(systemA_size)))
 
         !write(*,*), "This is lambdas value check: ", eigen_value_check
         !write(*,*) "This is entropy for this energy", entropy_value

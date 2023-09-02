@@ -47,9 +47,9 @@ program spin_code
     write(*,*) ' '
 
     !call mmm_csr_test()
-    !call omp_mkl_small_test()
-    !call sparse_dfeast_test()
-    !call test_permutation_H_for_4_sites()
+    call omp_mkl_small_test()
+    call sparse_dfeast_test()
+    call test_permutation_H_for_4_sites()
 
     write(*,*) '------- START Heisenberg Program -------'
     N_spin_max = 2**N_spin 
@@ -68,52 +68,61 @@ program spin_code
     !creating a basis for N_spin system and whole basis vector -> 0000, 0001
     call H_create_basis_sz(N_spin, Sz_basis, basis_vector)
 
+    !preparing the file for the main loop
     file_name1 = 'Entropy_results_' // trim(adjustl(N_spin_char)) // '_equal_div.dat'
     open (unit=1, file= trim(file_name1), recl=512)
     write(1,*), "# Eigenvalue     Entropie    Spin_z    Sum_of_lambdas"
     
-    do k = 1, size(target_sz, 1)
-        target_sz_spin = target_sz(k)
-
-                ! here put loop for whole target_sz
-                call Hash_basis_with_target(N_spin, target_sz_spin , Sz_basis, basis_vector, hash, basis_rho_target)
-                print *, "Chosen target of Sz: ", target_sz_spin
-
-                ! calulacting basis for subsystems A and B 
-
-                ! call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
-                call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
-                call H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
-
+    print*, "Entering main loop of the program"
                 !spin_basis = dec2bin
-                size_of_sub_A = int(N_spin/2)
-                size_of_sub_B = int(N_spin - size_of_sub_A)
-                print *, "Size of subsystem A", size_of_sub_A
-                print *, "Size of subsystem B", size_of_sub_B
-                print *, " "
+    size_of_sub_A = int(N_spin/2)
+    size_of_sub_B = int(N_spin - size_of_sub_A)
+    print *, "Size of subsystem A", size_of_sub_A
+    print *, "Size of subsystem B", size_of_sub_B
+    print *, " "
 
-            
-                do i = 1, size(eigen_values, 1)
-                    call Rho_reduced_calculation(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, eigen_vectors, i, rho_reduced)
-                    call  Entropy_calculation(size_of_sub_A, size(rho_reduced, 1), rho_reduced, entropy_value, eigen_value_check)
+    do k = 1, size(target_sz, 1) ! loop over all S_z basis
+            !chosen target in this loop
+            target_sz_spin = target_sz(k)
 
-                    !print*, "This is entropy value for:"
-                    !print*, "Spin Z = ", target_sz_spin
-                    !print*, "Eigenvalue = ", eigen_values(i)
-                    !print*, "Entropy normalised = ", entropy_value
-                    !print*, "Lambdas check if 1.0 = ", eigen_value_check
+            ! here put loop for whole target_sz
+            call Hash_basis_with_target(N_spin, target_sz_spin , Sz_basis, basis_vector, hash, basis_rho_target)
+            print *, "Start entropy calculation for chosen target of Sz: ", target_sz_spin
 
-                    write(1,*) eigen_values(i), ',' , entropy_value, ',',  target_sz_spin, ',', eigen_value_check
-                end do 
+            ! calulacting basis for subsystems A and B 
 
+            ! call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
+            print *, "Feast vectors filling for Sz: ", target_sz_spin
+            call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
+            print *, "Feast diagonalization for Sz: ", target_sz_spin
+            call H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
+
+            print *, "Loop of generating reduced density matrices and entropy calculation for Sz: ", target_sz_spin
+            do i = 1, size(eigen_values, 1)
+                call Rho_reduced_calculation(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, eigen_vectors, i, rho_reduced)
+                call Entropy_calculation(size_of_sub_A, size(rho_reduced, 1), rho_reduced, entropy_value, eigen_value_check)
+
+                !print*, "This is entropy value for:"
+                !print*, "Spin Z = ", target_sz_spin
+                !print*, "Eigenvalue = ", eigen_values(i)
+                !print*, "Entropy normalised = ", entropy_value
+                !print*, "Lambdas check if 1.0 = ", eigen_value_check
+
+                write(1,*) eigen_values(i), ',' , entropy_value, ',',  target_sz_spin, ',', eigen_value_check
+
+            end do 
+
+            deallocate(hash, basis_rho_target, eigen_values, eigen_vectors, rho_reduced)
+            print *, "Finished for ", target_sz_spin
     end do 
     
     close(1)
  
 
-    deallocate(Sz_basis, basis_vector)
+    deallocate(Sz_basis, basis_vector, target_sz, indices_Sz_basis_sorted)
 
     write(*,*) "Program executed with success"
+    write(*,*) '------- END Heisenberg Program -------'
 
 
 end program spin_code
