@@ -14,7 +14,7 @@
 
 module load intel/2022a
 
-./heisenberg_main $SLURM_ARRAY_TASK_ID 1.0 > log_feast_16.out
+./heisenberg_main $SLURM_ARRAY_TASK_ID 1.0 > log_feast_$SLURM_ARRAY_TASK_ID.out
 
 
 

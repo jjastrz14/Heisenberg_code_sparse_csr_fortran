@@ -22,7 +22,7 @@ program spin_code
 
     ! do zrobienia
     ! zapis eigenvectora do pliku - podział na podpliki 
-    
+
     ! TO DO LATER
     ! Zacznij ciac odpowiednie wektory do S_z , pytanie czy to w fortranie czy nie? 
     ! chyba w fotranie + diagonalizacja za pomocą feasta blockowych macierzy 
