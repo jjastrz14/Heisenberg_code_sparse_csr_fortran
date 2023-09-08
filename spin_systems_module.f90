@@ -51,6 +51,8 @@ module spin_systems
         ! we can use e.g. btest function, which returns info if given bit is 0 (false) or 1 (true) 
         !bool_T/F=btest(number, bit_number)
         ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2
+
+        ! !$OMP PARALLEL DO
         do i = 0 , N_spin_max-1
             !basis(i) = i !here we want Sz from this i
             ! write(*,*) 'basis vector i =', i+1
@@ -71,11 +73,14 @@ module spin_systems
             Sz_basis(i+1) = Sz
             ! write(*,*) 'for basis vector i =', i, 'Sz = ', Sz_basis(i+1)
         end do
+        ! !$OMP END PARALLEL DO
 
-        write(*,*) 'Summary of Sz basis: '
-        do i=1,N_spin_max
-            write(*,*) Sz_basis(i)
-        end do
+        if (N_spin <= 10) then
+            write(*,*) 'Summary of Sz basis: '
+            do i=1,N_spin_max
+                write(*,*) Sz_basis(i)
+            end do
+        end if
         !commenting these lines
         !go to 90
         ! CHUNK OF CODE YOU WANT TO COMMENT OUT
@@ -84,16 +89,17 @@ module spin_systems
         id = 'D'
         !dlasrt
         call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
-
+        write(*,*) "Sorting of basis done"
         !subroutine sorts basis_sz array and creates array for permutation matrix
         ! call indexArrayReal(N_spin_max, basis_sz, index_array)
         !90 continue
+        if (N_spin <= 10) then
+            write(*,*) 'Indicies of Sorted Sz basis: '
+            write(*,*) indices_Sz_basis_sorted
 
-        write(*,*) 'Indicies of Sorted Sz basis: '
-        write(*,*) indices_Sz_basis_sorted
-
-        write(*,*) 'Sorted Sz basis: '
-        write(*,*) Sz_basis(indices_Sz_basis_sorted)
+            write(*,*) 'Sorted Sz basis: '
+            write(*,*) Sz_basis(indices_Sz_basis_sorted)
+        end if
 
         deallocate(Sz_basis)
 
@@ -125,11 +131,11 @@ module spin_systems
 
         allocate (Sz_basis(N_spin_max))
         allocate (basis(N_spin_max))
-        allocate (dec2bin(N_spin_max))
         allocate (basis_vector(N_spin_max, N_spin))
 
         ! only for visualization of the basis by 0 and 1 combinations
         if (N_spin <= 10) then
+            allocate (dec2bin(N_spin_max))
             do i = 1 , N_spin_max
                 basis(i) = i
             end do
@@ -145,12 +151,15 @@ module spin_systems
 
             write(*,*) 'Binary basis: ' 
             write(*,*) dec2bin
+            deallocate(dec2bin)
         end if
 
         ! Maciek version of basis generation with btest
         ! we can use e.g. btest function, which returns info if given bit is 0 (false) or 1 (true) 
         !bool_T/F=btest(number, bit_number)
         ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2 : spin_up -> 0, spin_down -> 1
+
+        !$OMP PARALLEL DO
         do i = 0 , N_spin_max-1
             basis(i) = i !here we want Sz from this i
             ! write(*,*) 'basis vector i =', i+1
@@ -175,6 +184,8 @@ module spin_systems
             Sz_basis(i+1) = Sz
             ! write(*,*) 'for basis vector i =', i, 'Sz = ', Sz_basis(i+1)
         end do
+        !$OMP END PARALLEL DO
+
 
         ! this basis_vector is used for truncating basis for reduced density matrices 
         !write(*,*) 'Basis vector 0 and 1: ' 
@@ -184,10 +195,12 @@ module spin_systems
           !  end do 
         !end do 
 
-        write(*,*) 'Summary of Sz basis: '
-        do i=1,N_spin_max
-            write(*,*) Sz_basis(i)
-        end do
+        if (N_spin <= 10) then
+            write(*,*) 'Summary of Sz basis: '
+            do i=1,N_spin_max
+                write(*,*) Sz_basis(i)
+            end do
+        end if
 
         deallocate(basis)
 
@@ -217,8 +230,10 @@ module spin_systems
             endif 
         end do 
 
-        !write(*,*) 'Hash:'
-        !write(*,*) hash
+        if (N_spin <= 10) then
+            write(*,*) 'Hash:'
+            write(*,*) hash
+        end if 
 
         max_val_hash_loc = MAXLOC(hash, dim = 1)
         min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
@@ -226,6 +241,7 @@ module spin_systems
 
         allocate(basis_rho_target(max_val_hash, N_spin))
 
+        !$OMP PARALLEL DO
         do i = 1, N_spin_max 
                 if (hash(i) > 0) then
                     basis_rho_target(hash(i),:) = basis_vector(i,:)
@@ -236,15 +252,19 @@ module spin_systems
                     error stop
                 end if 
         end do 
+        !$OMP END PARALLEL DO
 
-        !write(*,*) 'Hashed Basis vector 0 and 1: ' 
-        !do i = 1, max_val_hash 
-         !  do j = 1, N_spin 
-         !     write(*,*), i, j, basis_rho_target(i,j)
-         !  end do 
-        !end do
+
+        if (N_spin <= 10) then
+            write(*,*) 'Hashed Basis vector 0 and 1: ' 
+            do i = 1, max_val_hash 
+            do j = 1, N_spin 
+                write(*,*), i, j, basis_rho_target(i,j)
+            end do 
+            end do
         
-        write(*,*) "Size of basis rho target", size(basis_rho_target, 1)
+            write(*,*) "Size of basis rho target", size(basis_rho_target, 1)
+        end if
 
     end subroutine Hash_basis_with_target
 
@@ -303,20 +323,19 @@ module spin_systems
                     
         integer, intent(in) :: N_spin
         double precision, intent(in) :: J_spin
-        integer :: N_spin_max, i, j, ja_temp, ia_temp, no_of_nonzero_p_matrix, no_of_nonzero_h_matrix, stat_permutation, stat_H_csr, stat_csr_mutliplication, info
+        integer :: N_spin_max, i, j, ja_temp, ia_temp, no_of_nonzero_p_matrix, no_of_nonzero_h_matrix, stat_permutation, stat_H_csr, stat_csr_mutliplication, info, nrow, ncol, info_spmmd, stat_export
         double precision :: val_arr_temp
 
-        double precision, allocatable :: values_array(:), values_array_per(:)
-        integer, allocatable :: ia(:), ja(:), ia_per(:), ja_per(:)
+        double precision, allocatable :: values_array_H(:), values_array_per(:)
+        integer, allocatable :: ia_H(:), ja_H(:), ia_per(:), ja_per(:)
         integer, allocatable, intent(in) :: index_array(:)
 
-        integer :: nCol,nrowsD, ncolsD
-        
         !export from internal sparse to CSR
         integer(C_INT) :: indexing
-        type(C_PTR)    :: rowsD_start, rowsD_end, colD_indx, Dvalues
-        integer   , POINTER :: rowsD_start_f(:), rowsD_end_f(:), colD_indx_f(:)
-        double precision, POINTER :: Dvalues_f(:)
+        type(C_PTR)   :: ia_start, ia_end, ja, values
+
+        integer, pointer :: ia_export_B(:), ia_export_E(:), ja_export(:)
+        double precision, pointer :: values_array_export(:)
 
         !BLAS types
         type(sparse_matrix_t) :: p_matrix_csr
@@ -367,7 +386,7 @@ module spin_systems
 
         call H_XXX_feast_vec_fill(N_spin, J_spin, no_of_nonzero_h_matrix)
 
-        allocate( values_array(no_of_nonzero_h_matrix), ia(N_spin_max+1), ja(no_of_nonzero_h_matrix) )
+        allocate(values_array_H(no_of_nonzero_h_matrix), ia_H(N_spin_max+1), ja_H(no_of_nonzero_h_matrix) )
         
         !reading of exsisting files
         open (unit=60, file="ia_h.dat", recl=512)
@@ -376,14 +395,14 @@ module spin_systems
         
         do i=1, N_spin_max+1           
             read(60, *) ia_temp
-            ia(i) = ia_temp
+            ia_H(i) = ia_temp
         end do
             
         do i=1, no_of_nonzero_h_matrix
             read(62,*) val_arr_temp
-            values_array(i) = val_arr_temp
+            values_array_H(i) = val_arr_temp
             read(61, *) ja_temp
-            ja(i) = ja_temp
+            ja_H(i) = ja_temp
         end do
         
         close(60)
@@ -391,7 +410,7 @@ module spin_systems
         close(62)
 
         !rewriting H matrix to intel mkl internal csr format
-        stat_H_csr = mkl_sparse_d_create_csr(H_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia(1:N_spin_max), ia(2:N_spin_max+1), ja, values_array)
+        stat_H_csr = mkl_sparse_d_create_csr(H_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia_H(1:N_spin_max), ia_H(2:N_spin_max+1), ja_H, values_array_H)
         print *, "stat CSR H matrix create = ", stat_H_csr
 
         descrB%type = SPARSE_MATRIX_TYPE_SYMMETRIC
@@ -409,36 +428,33 @@ module spin_systems
         print *, "stat P @ H matrix @ P.T  = ", stat_csr_mutliplication
 
         ! export the Hamiltonian in CSR format matrix from the internal representation
-        info = mkl_sparse_d_export_csr(H_matrix_permuted, indexing, nrowsD, ncolsD, rowsD_start, rowsD_end, colD_indx, Dvalues)
+        stat_export = mkl_sparse_d_export_csr(H_matrix_permuted, indexing, nrow, ncol, ia_start, ia_end, ja, values)
         
-        print *, "Export H permuted to csr3  = ", info
+        print *, "Export H permuted to csr3  = ", stat_export
         info = mkl_sparse_order(H_matrix_permuted)
         print *, "Ordering H permuted  = ", info
-    
-    !   Converting C into Fortran pointers   to czy na pewno potrzebne?
-        call C_F_POINTER(rowsD_start, rowsD_start_f, [nrowsD])
-        call C_F_POINTER(rowsD_end  , rowsD_end_f  , [nrowsD]) 
-        call C_F_POINTER(colD_indx  , colD_indx_f  , [rowsD_end_f(nrowsD)-indexing])
-        call C_F_POINTER(Dvalues    , Dvalues_f    , [rowsD_end_f(nrowsD)-indexing])
 
+        !   Converting C into Fortran pointers
+        call C_F_POINTER(ia_start, ia_export_B, [nrow])
+        call C_F_POINTER(ia_end  , ia_export_E  , [nrow]) 
+        call C_F_POINTER(ja  , ja_export  , [ia_export_E(nrow)-indexing])
+        call C_F_POINTER(values    , values_array_export    , [ia_export_E(nrow)-indexing])
+        
+        write(*,*)  ' '
+        write(*,*) 'Exported CSR format of H permuted: '
+        print *, 'values array: ', values_array_export
+        print *, 'ja_H_permuted: ', ja_export
+        print *, 'ia_H_permuted; pointerB: ', ia_export_B
+        print *, 'ia_H_permuted; pointerE: ', ia_export_E
 
-        write(*,*) 'values array: '
-        write(*,*) Dvalues_f
-
-        write(*,*) 'ia: '
-        write(*,*) rowsD_start_f ! powinienes polaczyc rowsD_start_f + rowsD_end_f
-
-        write(*,*) 'ja: '
-        write(*,*)  colD_indx_f
-
-
-        deallocate(values_array_per, ia_per, ja_per)
-        deallocate(values_array, ia, ja)
 
         !   Release internal representation of CSR matrix
-        info = MKL_SPARSE_DESTROY(p_matrix_csr)
-        info = MKL_SPARSE_DESTROY(H_matrix_csr)
-        info = MKL_SPARSE_DESTROY(H_matrix_permuted)
+        info = mkl_sparse_destroy(p_matrix_csr)
+        info = mkl_sparse_destroy(H_matrix_csr)
+        info = mkl_sparse_destroy(H_matrix_permuted)
+
+        deallocate(values_array_per, ia_per, ja_per)
+        deallocate(values_array_H, ia_H, ja_H)
 
     end subroutine CSR_matrix_multiplication_for_3_matrices
 
@@ -1068,20 +1084,7 @@ module spin_systems
         !write(*,*) 'min val hash location', min_val_hash_loc
 
         !!! H_full filling
-        !write(*,*) 'H block feast vector fillings for target :'
-          
-        ! !$OMP PARALLEL DO
-        !do ind_i = 1, N_spin_max
-         !   do ind_j = 1, N_spin_max
-
-          !!      if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
-          !          call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_block_ij)
-          !          H_full_block(hash(ind_i),hash(ind_j))= H_block_ij
-           !     endif
-    !
-           ! end do
-        !end do
-       ! !$OMP END PARALLEL DO
+        write(*,*) 'H block feast vector fillings started'
 
         write(*,*) 'expected counter: =', max_val_hash*(max_val_hash+1)/2
         counter = 0
@@ -1127,6 +1130,8 @@ module spin_systems
         write(*,*) 'counter test = ', counter 
         no_of_nonzero = ind_ia
         write(*,*) 'number of non-zero elements = ', no_of_nonzero
+
+        write(*,*) 'H block feast vector fillings ended'
         
         close(20)
         close(21)
@@ -1374,6 +1379,88 @@ module spin_systems
         !close(32)
 
     end subroutine H_XXX_block_feast_vec_diag
+
+
+    subroutine H_XXX_block_csr_lapack_vec_diag_dense(N_spin, J_spin, no_of_nonzero, hash, eigen_values, eigen_vec)
+        use omp_lib
+        use mkl_vsl
+        use tests_module
+        implicit none
+
+        integer, intent(in) :: N_spin, no_of_nonzero
+        double precision, intent(in) :: J_spin
+        integer, allocatable, intent(in) :: hash(:)
+        double precision, allocatable, intent(out) :: eigen_values(:), eigen_vec(:,:)
+        integer :: i, j, ind_i, ind_j, N_spin_max, max_val_hash
+        double precision, allocatable :: H_full_block(:,:)
+        double precision :: norm, H_full_ij, J_spin_number
+ 
+        CHARACTER*1 :: jobz, range, uplo
+        integer :: il, iu, ldz, liwork, lwork, info, m_eig
+        double precision :: vl, vu, abstol
+        double precision, allocatable :: work(:)
+        integer, allocatable :: iwork(:), isuppz(:)
+        
+        CHARACTER(len=100) :: file_name1, file_name2, file_name3
+        CHARACTER(len=10) :: N_spin_charachter
+        
+        ! open (unit=11, file="H_full.dat", recl=512)
+        ! lets rewrite our matlab code
+        ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
+    
+        N_spin_max = 2**N_spin
+        max_val_hash = MAXVAl(hash)
+
+        write(*,*) 'test for max value of the block', max_val_hash
+
+        allocate( H_full_block(max_val_hash, max_val_hash))
+
+        J_spin_number = J_spin
+        H_full_block = 0.0d0
+
+        !!! H_full filling
+        write(*,*) 'H block: '
+          
+        !$OMP PARALLEL DO
+        do ind_i = 1, N_spin_max
+            do ind_j = 1, N_spin_max
+
+                if (hash(ind_i) > 0 .AND. hash(ind_j) > 0) then
+                    call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
+                    H_full_block(hash(ind_i),hash(ind_j))= H_full_ij
+                endif
+
+            end do
+        end do
+        !$OMP END PARALLEL DO
+        
+    
+        write(*,*) 'H_full matrix diagonalization'
+        jobz  = 'V' !Compute eigenvalues and eigenvectors.
+        range = 'I' !IL-th through IU-th eigenvalues will be found
+        uplo  = 'U' !Upper triangle of A is stored;
+        !N_mat = N_spin_max ! The order of the matrix
+        vl     = -30.0d0 ! lower bound of eigenvalues (for range='V')
+        vu     = 30.0d0  ! upper bound of eigenvalues (for range='V')
+        il     = 1  !the index of the smallest eigenvalue to be returned.
+        iu     = max_val_hash !the index of the largest eigenvalue to be returned.
+        abstol = 10**(-10.0d0)
+        ldz    = max_val_hash
+        lwork  = 26*max_val_hash
+        liwork = 10*max_val_hash
+
+        allocate (eigen_values(max_val_hash), eigen_vec(max_val_hash,max_val_hash), isuppz(2*max_val_hash), work(lwork), iwork(liwork))
+        write(*,*) 'just before allocation'
+       
+        call dsyevr(jobz, range, uplo, max_val_hash,  H_full_block, max_val_hash, vl, vu, il, iu, abstol, m_eig, eigen_values, eigen_vec, max_val_hash, isuppz, work, lwork, iwork, liwork, info)
+        write(*,*) "general dsyevr info:", info
+        write(*,*) lwork, " vs optimal lwork:", work(1)
+        write(*,*) "number of eigeval found:", m_eig
+        
+        deallocate ( H_full_block, isuppz, work, iwork )
+                            
+
+    end subroutine H_XXX_block_csr_lapack_vec_diag_dense
 
     subroutine Rho_reduced_calculation(N_spin, basis_rho_target, size_of_sub_A, size_of_sub_B, eigen_vectors, index_energy, rho_reduced)
         use math_functions
