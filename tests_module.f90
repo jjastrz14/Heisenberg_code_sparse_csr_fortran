@@ -193,7 +193,7 @@ module tests_module
 
 
             ! H matrix symmetric upper triangler to csr3
-            allocate(values_array_H(5), ia_H_B(4), ia_H_E(4), ja_H(5))
+            allocate(values_array_H(6), ia_H_B(4), ia_H_E(4), ja_H(6))
             ! H matrix
             ! 1 0 1 0
             ! 0 1 0 2

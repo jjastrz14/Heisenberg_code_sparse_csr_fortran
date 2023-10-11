@@ -6,13 +6,13 @@ program spin_code
     use math_functions
     implicit none
 
-    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i, k, target_sz_spin
-    double precision :: J_spin, entropy_value, eigen_value_check
+    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i, k, target_sz_spin, number_of_eigen
+    double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down
     double precision :: start, finish, finish_one_spin, start_one_spin
     character(len = 12) :: N_spin_char, J_spin_char
     character(len=53) :: dec2bin, spin_basis, file_name1
-    integer, allocatable :: hash(:), indices_Sz_basis_sorted(:), target_sz(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
-    double precision, allocatable :: Sz_basis(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
+    integer, allocatable :: Sz_basis(:), hash(:), indices_Sz_basis_sorted(:), target_sz(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
+    double precision, allocatable :: eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
 
 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
@@ -65,10 +65,12 @@ program spin_code
 
     ! writing all combination of Sz in decreasing order, works only for integers
     ! if float S_z is expected change it!
-    do i = 0, N_spin
-        target_sz(i+1) = int(N_spin/2) - i
-    end do 
+    !do i = 0, N_spin
+     !   target_sz(i+1) = int(N_spin/2) - i
+    !end do 
+    !target_sz = [3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9]
 
+    target_sz = [0] !na sztywno 
     print *, "All combination of S_z spin", target_sz
     write(*,*) " "
     
@@ -79,7 +81,7 @@ program spin_code
     write(*,*) " "
     
     !preparing the file for the main loop
-    file_name1 = 'Entropy_results_' // trim(adjustl(N_spin_char)) // '_equal_div.dat'
+    file_name1 = 'Entropy_results_' // trim(adjustl(N_spin_char)) // '_equal_div_feast.dat'
     open (unit=1, file= trim(file_name1), recl=512)
     write(1,*), "# Eigenvalue     Entropie    Spin_z    Sum_of_lambdas"
     
@@ -90,6 +92,14 @@ program spin_code
     print *, "Size of subsystem A", size_of_sub_A
     print *, "Size of subsystem B", size_of_sub_B
     print *, " "
+
+    e_up = -11.26d0 
+    e_down = -11.33d0  
+   
+    number_of_eigen = 10
+
+    !emin = e_down ! The lower ... &
+    !emax =  e_up  !  and upper bounds of the interval to be searched for eigenvalues
 
     ! !$OMP PARALLEL DO
     do k = 1, size(target_sz, 1) ! loop over all S_z basis
@@ -104,13 +114,14 @@ program spin_code
             ! calulacting basis for subsystems A and B 
 
             !call H_XXX_block_diag_with_target_dense(N_spin, J_spin, hash)
-            print *, "LAPACK dense block matrix diagonalization for Sz: ", target_sz_spin
-            call H_XXX_block_csr_lapack_vec_diag_dense(N_spin, J_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
+            !print *, "LAPACK dense block matrix diagonalization for Sz: ", target_sz_spin
+            !call H_XXX_block_csr_lapack_vec_diag_dense(N_spin, J_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
 
-            !print *, "Feast vectors filling for Sz: ", target_sz_spin
-            !call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
-            !print *, "Feast diagonalization for Sz: ", target_sz_spin
-            !call H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
+            print *, "Feast vectors filling for Sz: ", target_sz_spin
+            call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
+            print *, "Feast diagonalization for Sz: ", target_sz_spin
+            ! subroutine H_XXX_block_feast_vec_diag(N_spin, e_up, e_down, number_of_eigen, no_of_nonzero, hash, e, x)
+            call H_XXX_block_feast_vec_diag(N_spin, e_up, e_down, number_of_eigen, no_of_nonzero, hash, eigen_values, eigen_vectors)
 
             print *, "Loop of generating reduced density matrices and entropy calculation for Sz: ", target_sz_spin
 
@@ -133,7 +144,7 @@ program spin_code
             call cpu_time(finish_one_spin)
             print *, "Finished for ", target_sz_spin
             print *, " "
-            print '("Time Sz loop = ",f6.3," seconds.")',finish_one_spin-start_one_spin
+            print '("Time Sz loop = ",f," seconds.")',finish_one_spin-start_one_spin
     end do 
     ! !$OMP END PARALLEL DO
     
@@ -143,9 +154,9 @@ program spin_code
 
     write(*,*) " "
     write(*,*) "Program executed with success"
-    write(*,*) '------- END Heisenberg Program -------'
     call cpu_time(finish)
-    print '("Time = ",f6.3," seconds.")',finish-start
-
+    print '("Time = ",f," seconds.")',finish-start
+    write(*,*) '------- END Heisenberg Program -------'
+    
 
 end program spin_code

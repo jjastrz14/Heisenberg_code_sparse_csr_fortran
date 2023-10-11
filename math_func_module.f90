@@ -179,8 +179,5 @@ module math_functions
             end do
 
     end subroutine FindRowIndex
-    
-    
-
 
 end module math_functions

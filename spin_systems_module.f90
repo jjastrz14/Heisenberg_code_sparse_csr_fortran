@@ -116,11 +116,9 @@ module spin_systems
         integer, intent(in) :: N_spin
         double precision :: Sz
         character(len=53), allocatable :: dec2bin(:)
-        double precision, allocatable   :: basis_sz(:)
-        double precision, allocatable, intent(out) :: Sz_basis(:)
         integer :: N_spin_max, i, j, info, N, interator
-        integer, allocatable, intent(out) :: basis_vector(:,:)
-        integer, allocatable :: basis(:), indices_Sz_basis_sorted(:)
+        integer, allocatable, intent(out) :: Sz_basis(:), basis_vector(:,:)
+        integer, allocatable :: basis(:)
         logical :: bool
         CHARACTER*1 :: id
         character(len=53)             :: tmp
@@ -161,7 +159,7 @@ module spin_systems
 
         !$OMP PARALLEL DO
         do i = 0 , N_spin_max-1
-            basis(i) = i !here we want Sz from this i
+            !basis(i) = i !here we want Sz from this i
             ! write(*,*) 'basis vector i =', i+1
             Sz = 0.0d0
             do j=0, N_spin-1
@@ -210,7 +208,7 @@ module spin_systems
         implicit none 
 
         integer, intent(in) :: target_sz, N_spin, basis_vector(:,:)
-        double precision, intent(in) :: Sz_basis(:)
+        integer, intent(in) :: Sz_basis(:)
         integer, allocatable, intent(out) :: hash(:)
         integer, allocatable, intent(out) :: basis_rho_target(:,:)
         integer :: N, i,j, N_spin_max, max_val_hash_loc, min_val_hash_loc, max_val_hash
@@ -235,8 +233,8 @@ module spin_systems
             write(*,*) hash
         end if 
 
-        max_val_hash_loc = MAXLOC(hash, dim = 1)
-        min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
+        !max_val_hash_loc = MAXLOC(hash, dim = 1)
+        !min_val_hash_loc = FINDLOC(hash, 1,  dim = 1)
         max_val_hash = MAXVAl(hash)
 
         allocate(basis_rho_target(max_val_hash, N_spin))
@@ -1258,13 +1256,14 @@ module spin_systems
 
     end subroutine H_XXX_feast_vec_diag
 
-    subroutine H_XXX_block_feast_vec_diag(N_spin, no_of_nonzero, hash, e, x)
+    subroutine H_XXX_block_feast_vec_diag(N_spin, e_up, e_down, number_of_eigen, no_of_nonzero, hash, e, x)
         use omp_lib
         use mkl_vsl
         use tests_module
         implicit none
                     
-        integer, intent(in) :: N_spin, no_of_nonzero
+        integer, intent(in) :: N_spin, no_of_nonzero, number_of_eigen
+        double precision, intent(in) :: e_up, e_down
         integer, allocatable, intent(in) :: hash(:)
         integer :: i, j, N_spin_max, info, m_eig, n, loop, m0, fpm(128), ja_temp, ia_temp, max_val_hash
         CHARACTER*1 :: uplo
@@ -1329,14 +1328,16 @@ module spin_systems
         fpm(27) = 1 !check input matrices
         fpm(28) = 1 !check if B is positive definite?         
         uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
-        emin = -15d0 ! The lower ... &
-        emax =  6d0  !  and upper bounds of the interval to be searched for eigenvalues
-        m0 = max_val_hash !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n. 
+        emin = e_down ! The lower ... &
+        emax =  e_up  !  and upper bounds of the interval to be searched for eigenvalues
+        m0 = number_of_eigen !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n. 
         !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
         n = max_val_hash
         allocate( x(n,m0), e(m0), res(m0) )
         !write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+        write(*,*) 'E_min = ', e_down
+        write(*,*) 'E_max', e_up
         write(*,*) 'Before dfeast_scsrev... '
         call dfeast_scsrev(uplo, n, values_array, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m_eig, res, info)
         write(*,*) 'eps_out= ', epsout
@@ -1349,6 +1350,8 @@ module spin_systems
         end if 
         
         write(*,*) ' dfeast_scsrev eigenvalues found= ', m_eig
+
+        write(*,*) ' e ', e
         !write(30,*) 'i-th , eigenvalue'
         !do i = 1 , m_eig
            ! write(30,*) i, ',' , e(i)
