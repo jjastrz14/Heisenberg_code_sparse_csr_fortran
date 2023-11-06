@@ -719,6 +719,109 @@ module spin_systems
 
     end subroutine H_XXX_filling
 
+
+    subroutine H_XXX_filling_adjacency_matrix(N_spin, J_spin, i, j, H_full_ij)
+        implicit none
+        integer, intent(in) :: N_spin, i, j
+        double precision, intent(in) :: J_spin
+        double precision, intent(out) :: H_full_ij
+        integer :: N_spin_max  
+        double precision :: Sp_site_ind_Sm_site_ind_p1_ij, Sm_site_ind_Sp_site_ind_p1_ij, Sz_site_ind_Sz_site_ind_p1_ij
+        integer :: site_ind, m, n, p, q, r, s
+        integer :: ind_i, ind_j, a_i, a_j, b_i, b_j, c_i, c_j
+        double precision :: A_val, B_val, C_val
+
+        ! N spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
+        N_spin_max = 2**N_spin
+
+        H_full_ij = 0.0d0
+
+        !here write the loop over the adjacency matrix 
+                           
+        do site_ind = 1, (N_spin-1) !here change for searching through the adjacency matrix for graphs
+            m = 2**(site_ind-1)
+            n = m
+            p = 4 ! N_spin independent because this referes to S+S- operator for spin 1/2 
+            q = 4
+            r = 2**(N_spin-(site_ind+1))
+            s = r
+            !write(*,*) site_ind, m, n, p, q, r, s
+        
+            Sp_site_ind_Sm_site_ind_p1_ij = 0.0d0
+            Sm_site_ind_Sp_site_ind_p1_ij = 0.0d0
+            Sz_site_ind_Sz_site_ind_p1_ij = 0.0d0
+            
+            !do ind_i = 1, N_spin_max
+            !do ind_j = 1, N_spin_max
+            ind_i = i
+            ind_j = j
+                !write(*,*) 'site_ind, ind_i, ind_j = ',  site_ind, ind_i, ind_j
+                !i = ind_i-1
+                !j = ind_j-1
+                a_i = FLOOR( (ind_i-1.0d0)/( (p*r)+0.0d0 ) )
+                a_j = FLOOR( (ind_j-1.0d0)/( (q*s)+0.0d0 ) )
+                b_i = MOD(FLOOR( (ind_i-1.0d0)/( r+0.0d0 ) ), p)
+                b_j = MOD(FLOOR( (ind_j-1.0d0)/( s+0.0d0 ) ), q)
+                c_i = MOD(ind_i-1, r)
+                c_j = MOD(ind_j-1, s)
+                                
+                A_val = 0.0d0
+                B_val = 0.0d0
+                C_val = 0.0d0
+            
+                if (a_i == a_j) then
+                    A_val = 1.0d0
+                else
+                    A_val = 0.0d0
+                end if
+            
+                if (c_i == c_j) then
+                    C_val = 1.0d0
+                else
+                    C_val = 0.0d0
+                end if
+            
+                ! For S+S-:
+                if (b_i == 1 .AND. b_j == 2) then
+                    B_val = 1.0d0
+                else
+                    B_val = 0.0d0
+                end if
+                Sp_site_ind_Sm_site_ind_p1_ij = A_val*B_val*C_val
+            
+                ! For S-S+:
+                if (b_i == 2 .AND. b_j == 1) then
+                    B_val = 1.0d0
+                else
+                    B_val = 0.0d0
+                end if                    
+                Sm_site_ind_Sp_site_ind_p1_ij = A_val*B_val*C_val
+            
+                ! For SzSz:
+                if (b_i == 0 .AND. b_j == 0) then
+                    B_val = 0.250d0
+                else if (b_i == 1 .AND. b_j == 1) then
+                    B_val = -0.250d0
+                else if (b_i == 2 .AND. b_j == 2) then
+                    B_val = -0.250d0
+                else if (b_i == 3 .AND. b_j == 3) then
+                    B_val = 0.250d0
+                else
+                    B_val = 0.0d0
+                end if
+
+                Sz_site_ind_Sz_site_ind_p1_ij= A_val*B_val*C_val
+            
+            !end do
+            !end do
+        
+            H_full_ij = H_full_ij + 1.0d0/2.0d0 *(Sp_site_ind_Sm_site_ind_p1_ij+Sm_site_ind_Sp_site_ind_p1_ij) + Sz_site_ind_Sz_site_ind_p1_ij
+            
+        end do
+
+
+    end subroutine H_XXX_filling_adjacency_matrix
+
     
     subroutine H_XXX_diag(N_spin, J_spin)
         use omp_lib
@@ -1351,7 +1454,7 @@ module spin_systems
         
         write(*,*) ' dfeast_scsrev eigenvalues found= ', m_eig
 
-        write(*,*) ' e ', e
+        !write(*,*) ' e ', e
         !write(30,*) 'i-th , eigenvalue'
         !do i = 1 , m_eig
            ! write(30,*) i, ',' , e(i)

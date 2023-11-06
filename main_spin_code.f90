@@ -14,7 +14,7 @@ program spin_code
     integer, allocatable :: Sz_basis(:), hash(:), indices_Sz_basis_sorted(:), target_sz(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
     double precision, allocatable :: eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
 
-
+    ! OPIS DO POPRAWY! 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
     ! tworzenie bazy i s_z działa
     ! macierz permutacji H działa 
@@ -48,9 +48,10 @@ program spin_code
     write(*,*) ' '
 
     call mmm_csr_test()
-    call sparse_dfeast_test()
-    call test_permutation_H_for_4_sites()
     call omp_mkl_small_test()
+    call test_permutation_H_for_4_sites()
+    call sparse_zfeast_test()
+    call sparse_dfeast_test()
 
     call cpu_time(start)
     write(*,*) '------- START Heisenberg Program -------'
@@ -65,12 +66,13 @@ program spin_code
 
     ! writing all combination of Sz in decreasing order, works only for integers
     ! if float S_z is expected change it!
-    !do i = 0, N_spin
-     !   target_sz(i+1) = int(N_spin/2) - i
-    !end do 
-    !target_sz = [3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9]
+    do i = 0, N_spin
+        target_sz(i+1) = int(N_spin/2) - i
+    end do 
 
-    target_sz = [0] !na sztywno 
+    !target_sz = [3, 2, 1, 0, -1, -2, -3, -4, -5, -6, -7, -8, -9]
+    !target_sz = [0] !na sztywno 
+
     print *, "All combination of S_z spin", target_sz
     write(*,*) " "
     
@@ -81,7 +83,7 @@ program spin_code
     write(*,*) " "
     
     !preparing the file for the main loop
-    file_name1 = 'Entropy_results_' // trim(adjustl(N_spin_char)) // '_equal_div_feast.dat'
+    file_name1 = 'Entropy_results_' // trim(adjustl(N_spin_char)) // '_equal_div_feast_MACIEK_TEST.dat'
     open (unit=1, file= trim(file_name1), recl=512)
     write(1,*), "# Eigenvalue     Entropie    Spin_z    Sum_of_lambdas"
     
@@ -93,10 +95,9 @@ program spin_code
     print *, "Size of subsystem B", size_of_sub_B
     print *, " "
 
-    e_up = -11.26d0 
-    e_down = -11.33d0  
-   
-    number_of_eigen = 10
+    e_up = 15d0 
+    e_down = -15d0  
+    
 
     !emin = e_down ! The lower ... &
     !emax =  e_up  !  and upper bounds of the interval to be searched for eigenvalues
@@ -117,6 +118,7 @@ program spin_code
             !print *, "LAPACK dense block matrix diagonalization for Sz: ", target_sz_spin
             !call H_XXX_block_csr_lapack_vec_diag_dense(N_spin, J_spin, no_of_nonzero, hash, eigen_values, eigen_vectors)
 
+            number_of_eigen = MAXVAl(hash)
             print *, "Feast vectors filling for Sz: ", target_sz_spin
             call H_XXX_block_feast_vec_fill(N_spin, J_spin, hash, no_of_nonzero)
             print *, "Feast diagonalization for Sz: ", target_sz_spin

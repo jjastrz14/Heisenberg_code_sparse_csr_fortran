@@ -320,26 +320,27 @@ module tests_module
 
         end subroutine mmm_csr_test
 
-    subroutine sparse_dfeast_test()
-        
+
+    subroutine sparse_zfeast_test()
+    
         implicit none
         double complex, allocatable :: test_matrix(:,:)
         CHARACTER*1 :: jobz, uplo            
         integer :: i, n, lda, lwork, info
-        double precision, allocatable :: eigenvalues(:), rwork(:)
+        double complex, allocatable :: rwork(:)
         double complex, allocatable ::  work(:,:)
-        double precision, allocatable :: values_array(:), x(:,:)
+        double complex, allocatable :: values_array(:)
         integer, allocatable :: ia(:), ja(:)
-        integer :: fpm(128)
+        integer, dimension(64) :: fpm
         double precision :: emin, emax
         integer :: m0
         double precision :: epsout
         integer :: loop
-        double precision, allocatable :: e(:)
+        double precision, allocatable :: e(:), eigenvalues(:), x(:,:)
         integer :: m
         double precision, allocatable :: res(:)
         
-        write(*,*) '----------- FEAST test START small matrix: -----------'
+        write(*,*) '----------- Complex FEAST test START small matrix: -----------'
         write(*,*) " "
 
         n = 5
@@ -406,6 +407,139 @@ module tests_module
         
         !n=n     ! Sets the size of the problem
         !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+        call feastinit(fpm)  ! function specifying default parameters fpm of FEAST algorithm
+        fpm(1) = 1 !if 1 print runtime comments
+        !fpm(2) = 12 !can be more, can be less
+        !fpm(3) = 8 !eps 10^-fpm(3)
+        !fpm(4) = 20 ! max number of feast loops
+        !fpm(5) = 0 !initial subspace
+        !fpm(6) = 0! stopping criterion
+        !fpm(7) = 5 !Error trace sigle prec stop crit
+        !fpm(14) = 0! standard use of feast
+        !fpm(27) = 1 !check input matrices
+        !fpm(28) = 1 !check if B is positive definite?    
+        !fpm(13) = 0     
+        uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
+        emin = -20.0d0 ! The lower ... &
+        emax =  20.0d0  !  and upper bounds of the interval to be searched for eigenvalues
+        m0 = 5 !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n. 
+        !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
+        !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+        n = 5
+        allocate( x(n,m0), e(m0), res(m0) )
+        !write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+
+        !zfeast_hcsrev(UPLO,N,A,IA,JA,fpm,epsout,loop,Emin,Emax,M0,E,X,M,res,info)
+
+        write(*,*) 'Before zfeast_hcsrev... '
+        call zfeast_hcsrev(uplo, n, values_array, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
+        write(*,*) 'eps_out= ', epsout
+        write(*,*) 'loop= ', loop
+        write(*,*) 'zfeast_hcsrev info=', info
+        write(*,*) 'After zfeast_hcsrev... '
+            
+        if (info /= 0) then
+        write(*,*) 'problem with zfeast_hcsrev, info=', info
+        end if 
+        
+        write(*,*) 'no of eigenvalues found= ', m
+        do i = 1, m
+            write(*,*) i, e(i)
+        end do
+                    
+        deallocate(test_matrix, values_array, ia, ja, x, e, res)
+
+        write(*,*) '----------- Complex FEAST test END: -----------'
+        write(*,*) " "
+
+    end subroutine sparse_zfeast_test
+
+    subroutine sparse_dfeast_test()
+        
+        implicit none
+        double precision, allocatable :: test_matrix(:,:)
+        CHARACTER*1 :: jobz, uplo            
+        integer :: i, n, lda, lwork, info
+        double precision, allocatable :: eigenvalues(:), rwork(:)
+        double precision, allocatable ::  work(:,:)
+        double precision, allocatable :: values_array(:), x(:,:)
+        integer, allocatable :: ia(:), ja(:)
+        integer :: fpm(128)
+        double precision :: emin, emax
+        integer :: m0
+        double precision :: epsout
+        integer :: loop
+        double precision, allocatable :: e(:)
+        integer :: m
+        double precision, allocatable :: res(:)
+        
+        write(*,*) '----------- Double precision FEAST test START small matrix: -----------'
+        write(*,*) " "
+
+        n = 5
+        allocate (test_matrix(n,n))
+        test_matrix = 0.0d0
+        test_matrix(1,1) = 1.0d0
+        test_matrix(2,2) = 0.0d0
+        test_matrix(3,3) = 2.0d0
+        test_matrix(4,4) = 0.0d0
+        test_matrix(5,5) = 3.0d0
+        test_matrix(1,4) = 5.0d0
+        test_matrix(2,3) = 6.0d0
+        test_matrix(3,5) = 7.0d0
+        
+        !standard diagonalziation
+        jobz='V' !N - only eigenvalues, V - eigenvalues + eigenvectors
+        uplo='U' !upper hermitean matrix part passed to routine
+        n=5
+        lda=n
+        lwork=3*n-1  
+        allocate(work(lwork,lwork),rwork(3*n-2),eigenvalues(n))
+        !call dsyev(jobz, uplo, n, a, lda, w, work, lwork, info)
+        call dsyev(jobz, uplo, n, test_matrix, lda, eigenvalues, work, lwork, info)
+        if (info /= 0) then
+            write(*,*) 'problem with dsyev, info=', info
+        end if 
+            
+        do i=1,n
+            write(*,*) i, eigenvalues(i) 
+        enddo     
+        deallocate(work,rwork,eigenvalues)
+
+        write(*,*) 'dsyev diagonalization finished, FEAST start'
+
+        !FEAST diagonalization
+        ! we need to store diagonal zeros as well !!!
+        allocate( values_array(8), ia(6), ja(8) )
+        
+        values_array(1) = 1.0d0
+        values_array(2) = 5.0d0
+        values_array(3) = 0.0d0
+        values_array(4) = 6.0d0
+        values_array(5) = 2.0d0
+        values_array(6) = 7.0d0
+        values_array(7) = 0.0d0
+        values_array(8) = 3.0d0
+        
+        ja(1) = 1
+        ja(2) = 4
+        ja(3) = 2
+        ja(4) = 3
+        ja(5) = 3
+        ja(6) = 5
+        ja(7) = 4
+        ja(8) = 5
+        
+        ia(1) = 1
+        ia(2) = 3
+        ia(3) = 5
+        ia(4) = 7
+        ia(5) = 8
+        ia(6) = 9 !no of non-zero +1 !!!
+        
+        
+        !n=n     ! Sets the size of the problem
+        !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
         call feastinit (fpm)  ! function specifying default parameters fpm of FEAST algorithm
         fpm(1) = 1
         fpm(2) = 12 !can be more, can be less
@@ -425,16 +559,16 @@ module tests_module
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
         n = 5
         allocate( x(n,m0), e(m0), res(m0) )
-        write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
-        write(*,*) 'Before dfeast_hcsrev... '
+        !write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+        write(*,*) 'Before dfeast_scsrev... '
         call dfeast_scsrev(uplo, n, values_array, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
         write(*,*) 'eps_out= ', epsout
         write(*,*) 'loop= ', loop
-        write(*,*) 'dfeast_hcsrev info=', info
-        write(*,*) 'After dfeast_hcsrev... '
+        write(*,*) 'dfeast_scsrev info=', info
+        write(*,*) 'After dfeast_scsrev... '
             
         if (info /= 0) then
-        write(*,*) 'problem with dfeast_hcsrev, info=', info
+        write(*,*) 'problem with dfeast_scsrev, info=', info
         end if 
         
         write(*,*) 'no of eigenvalues found= ', m
@@ -444,7 +578,7 @@ module tests_module
                     
         deallocate(test_matrix, values_array, ia, ja, x, e, res)
 
-        write(*,*) '----------- FEAST test END: -----------'
+        write(*,*) '----------- Double precision FEAST test END -----------'
         write(*,*) " "
 
     end subroutine sparse_dfeast_test
@@ -500,14 +634,14 @@ module tests_module
         !permutating as P @ H @ P.T
         call mmm_mat_mul(H_permuted, dble(p_matrix), H_full, dble(p_matrix), 'n', 'n', 't')
 
-        !write(*,*) 'H matrix indicies for 4 sites: '
-        !do i = 1, N_spin_max
-           ! do j = 1, N_spin_max
+        write(*,*) 'H matrix indicies for 4 sites: '
+        do i = 1, N_spin_max
+            do j = 1, N_spin_max
 
-            !print *,  i, j, H_permuted(i,j)
+            print *,  i, j, H_permuted(i,j)
 
-            !enddo 
-        !enddo 
+            enddo 
+        enddo 
 
         write(*,*) 'H matrix for 4 sites: '
         do i = 1, N_spin_max
