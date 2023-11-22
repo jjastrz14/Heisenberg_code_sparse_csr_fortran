@@ -47,9 +47,9 @@ program spin_code
     write(*,*) 'Calculation of Heisenberg chain for N =', N_spin , 'and J = ', J_spin 
     write(*,*) ' '
 
-    call mmm_csr_test()
+    ! call mmm_csr_test()
     call omp_mkl_small_test()
-    call test_permutation_H_for_4_sites()
+    ! call test_permutation_H_for_4_sites()
     call sparse_zfeast_test()
     call sparse_dfeast_test()
 
@@ -95,8 +95,8 @@ program spin_code
     print *, "Size of subsystem B", size_of_sub_B
     print *, " "
 
-    e_up = 15d0 
-    e_down = -15d0  
+    e_up = 20d0 
+    e_down = -20d0  
     
 
     !emin = e_down ! The lower ... &

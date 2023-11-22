@@ -86,20 +86,20 @@ module spin_systems
         ! CHUNK OF CODE YOU WANT TO COMMENT OUT
         
         !sorting
-        id = 'D'
-        !dlasrt
-        call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
-        write(*,*) "Sorting of basis done"
+        ! id = 'D'
+        !dlaspt form SCALAPACK
+        ! call dlapst(id, N_spin_max, Sz_basis, indices_Sz_basis_sorted, info ) !scalapack quicksort
+        ! write(*,*) "Sorting of basis done"
         !subroutine sorts basis_sz array and creates array for permutation matrix
         ! call indexArrayReal(N_spin_max, basis_sz, index_array)
         !90 continue
-        if (N_spin <= 10) then
-            write(*,*) 'Indicies of Sorted Sz basis: '
-            write(*,*) indices_Sz_basis_sorted
+        !if (N_spin <= 10) then
+          !  write(*,*) 'Indicies of Sorted Sz basis: '
+           ! write(*,*) indices_Sz_basis_sorted
 
-            write(*,*) 'Sorted Sz basis: '
-            write(*,*) Sz_basis(indices_Sz_basis_sorted)
-        end if
+          !  write(*,*) 'Sorted Sz basis: '
+           ! write(*,*) Sz_basis(indices_Sz_basis_sorted)
+        !end if
 
         deallocate(Sz_basis)
 
@@ -266,6 +266,7 @@ module spin_systems
 
     end subroutine Hash_basis_with_target
 
+
     subroutine Create_permutation_matrix(N_spin_max, array_index, p_matrix)
         implicit none
 
@@ -314,147 +315,147 @@ module spin_systems
 
     end subroutine Create_permutation_matrix_csr
 
-    subroutine CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, index_array)
-        use mkl_spblas
-        use ISO_C_BINDING
-        implicit none 
+    ! subroutine CSR_matrix_multiplication_for_3_matrices(N_spin, J_spin, index_array)
+        !use mkl_spblas
+        ! use ISO_C_BINDING
+        ! implicit none 
                     
-        integer, intent(in) :: N_spin
-        double precision, intent(in) :: J_spin
-        integer :: N_spin_max, i, j, ja_temp, ia_temp, no_of_nonzero_p_matrix, no_of_nonzero_h_matrix, stat_permutation, stat_H_csr, stat_csr_mutliplication, info, nrow, ncol, info_spmmd, stat_export
-        double precision :: val_arr_temp
+        ! integer, intent(in) :: N_spin
+        ! double precision, intent(in) :: J_spin
+        ! integer :: N_spin_max, i, j, ja_temp, ia_temp, no_of_nonzero_p_matrix, no_of_nonzero_h_matrix, stat_permutation, stat_H_csr, stat_csr_mutliplication, info, nrow, ncol, info_spmmd, stat_export
+        ! double precision :: val_arr_temp
 
-        double precision, allocatable :: values_array_H(:), values_array_per(:)
-        integer, allocatable :: ia_H(:), ja_H(:), ia_per(:), ja_per(:)
-        integer, allocatable, intent(in) :: index_array(:)
+        ! double precision, allocatable :: values_array_H(:), values_array_per(:)
+        ! integer, allocatable :: ia_H(:), ja_H(:), ia_per(:), ja_per(:)
+        ! integer, allocatable, intent(in) :: index_array(:)
 
         !export from internal sparse to CSR
-        integer(C_INT) :: indexing
-        type(C_PTR)   :: ia_start, ia_end, ja, values
+        ! integer(C_INT) :: indexing
+        ! type(C_PTR)   :: ia_start, ia_end, ja, values
 
-        integer, pointer :: ia_export_B(:), ia_export_E(:), ja_export(:)
-        double precision, pointer :: values_array_export(:)
+        ! integer, pointer :: ia_export_B(:), ia_export_E(:), ja_export(:)
+        ! double precision, pointer :: values_array_export(:)
 
         !BLAS types
-        type(sparse_matrix_t) :: p_matrix_csr
-        type(sparse_matrix_t) :: H_matrix_csr
-        type(sparse_matrix_t) :: H_matrix_permuted
-        type(matrix_descr) :: descrB, descrP
+        ! type(sparse_matrix_t) :: p_matrix_csr
+        ! type(sparse_matrix_t) :: H_matrix_csr
+        ! type(sparse_matrix_t) :: H_matrix_permuted
+        ! type(matrix_descr) :: descrB, descrP
 
-        N_spin_max = 2**N_spin
+        ! N_spin_max = 2**N_spin
         !GENERAL CSR3 FORMAT
-        call Create_permutation_matrix_csr(N_spin_max, index_array, no_of_nonzero_p_matrix)
+        ! call Create_permutation_matrix_csr(N_spin_max, index_array, no_of_nonzero_p_matrix)
 
-        allocate(values_array_per(no_of_nonzero_p_matrix), ia_per(N_spin_max+1), ja_per(no_of_nonzero_p_matrix))
+        ! allocate(values_array_per(no_of_nonzero_p_matrix), ia_per(N_spin_max+1), ja_per(no_of_nonzero_p_matrix))
         
         !reading of exsisting files
-        open (unit=40, file="ia_per.dat", recl=512)
-        open (unit=41, file="ja_per.dat", recl=512)
-        open (unit=42, file="values_array_per.dat", recl=512)
+        ! open (unit=40, file="ia_per.dat", recl=512)
+        ! open (unit=41, file="ja_per.dat", recl=512)
+        ! open (unit=42, file="values_array_per.dat", recl=512)
         
-        do i=1, N_spin_max+1           
-            read(40, *) ia_temp
-            ia_per(i) = ia_temp
-        end do
+        ! do i=1, N_spin_max+1           
+        !     read(40, *) ia_temp
+        !     ia_per(i) = ia_temp
+        ! end do
             
-        do i=1, no_of_nonzero_p_matrix
-            read(42,*) val_arr_temp
-            values_array_per(i) = val_arr_temp
-            read(41, *) ja_temp
-            ja_per(i) = ja_temp
-        end do
+        ! do i=1, no_of_nonzero_p_matrix
+        !     read(42,*) val_arr_temp
+        !     values_array_per(i) = val_arr_temp
+        !     read(41, *) ja_temp
+        !     ja_per(i) = ja_temp
+        ! end do
         
-        close(40)
-        close(41)
-        close(42)
+        ! close(40)
+        ! close(41)
+        ! close(42)
 
         !stat = mkl_sparse_d_create_csr(A, indexing, rows, cols, rows_start, rows_end, col_indx, values)
 
         !rewriting permutation matrix to intel mkl internal csr format !BLAS POINTERS TO CSR in MKL/BLAS
-        stat_permutation = mkl_sparse_d_create_csr(p_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia_per(1:N_spin_max), ia_per(2:N_spin_max+1), ja_per, values_array_per)
-        print *, "stat CSR Permutation matrix create = ", stat_permutation
+        ! stat_permutation = mkl_sparse_d_create_csr(p_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia_per(1:N_spin_max), ia_per(2:N_spin_max+1), ja_per, values_array_per)
+        ! print *, "stat CSR Permutation matrix create = ", stat_permutation
 
         !   Create matrix descriptor
-        descrP % TYPE = SPARSE_MATRIX_TYPE_GENERAL
+        ! descrP % TYPE = SPARSE_MATRIX_TYPE_GENERAL
 
         !   Analyze sparse matrix; chose proper kernels and workload balancing strategy
-        info = MKL_SPARSE_OPTIMIZE(p_matrix_csr)
+        ! info = MKL_SPARSE_OPTIMIZE(p_matrix_csr)
 
-        print *, "optimization of CSR Permutation matrix = ", info
+        ! print *, "optimization of CSR Permutation matrix = ", info
 
-        call H_XXX_feast_vec_fill(N_spin, J_spin, no_of_nonzero_h_matrix)
+        ! call H_XXX_feast_vec_fill(N_spin, J_spin, no_of_nonzero_h_matrix)
 
-        allocate(values_array_H(no_of_nonzero_h_matrix), ia_H(N_spin_max+1), ja_H(no_of_nonzero_h_matrix) )
+        ! allocate(values_array_H(no_of_nonzero_h_matrix), ia_H(N_spin_max+1), ja_H(no_of_nonzero_h_matrix) )
         
         !reading of exsisting files
-        open (unit=60, file="ia_h.dat", recl=512)
-        open (unit=61, file="ja_h.dat", recl=512)
-        open (unit=62, file="values_array_h.dat", recl=512)
+        ! open (unit=60, file="ia_h.dat", recl=512)
+        ! open (unit=61, file="ja_h.dat", recl=512)
+        ! open (unit=62, file="values_array_h.dat", recl=512)
         
-        do i=1, N_spin_max+1           
-            read(60, *) ia_temp
-            ia_H(i) = ia_temp
-        end do
+        ! do i=1, N_spin_max+1           
+        !     read(60, *) ia_temp
+        !     ia_H(i) = ia_temp
+        ! end do
             
-        do i=1, no_of_nonzero_h_matrix
-            read(62,*) val_arr_temp
-            values_array_H(i) = val_arr_temp
-            read(61, *) ja_temp
-            ja_H(i) = ja_temp
-        end do
+        ! do i=1, no_of_nonzero_h_matrix
+        !     read(62,*) val_arr_temp
+        !     values_array_H(i) = val_arr_temp
+        !     read(61, *) ja_temp
+        !     ja_H(i) = ja_temp
+        ! end do
         
-        close(60)
-        close(61)
-        close(62)
+        ! close(60)
+        ! close(61)
+        ! close(62)
 
         !rewriting H matrix to intel mkl internal csr format
-        stat_H_csr = mkl_sparse_d_create_csr(H_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia_H(1:N_spin_max), ia_H(2:N_spin_max+1), ja_H, values_array_H)
-        print *, "stat CSR H matrix create = ", stat_H_csr
+        ! stat_H_csr = mkl_sparse_d_create_csr(H_matrix_csr, SPARSE_INDEX_BASE_ONE, N_spin_max, N_spin_max , ia_H(1:N_spin_max), ia_H(2:N_spin_max+1), ja_H, values_array_H)
+        ! print *, "stat CSR H matrix create = ", stat_H_csr
 
-        descrB%type = SPARSE_MATRIX_TYPE_SYMMETRIC
-        descrB%mode = SPARSE_FILL_MODE_UPPER
-        descrB % DIAG = SPARSE_DIAG_NON_UNIT !this shouldn't be used but it is 
+        ! descrB%type = SPARSE_MATRIX_TYPE_SYMMETRIC
+        ! descrB%mode = SPARSE_FILL_MODE_UPPER
+        ! descrB % DIAG = SPARSE_DIAG_NON_UNIT !this shouldn't be used but it is 
 
         ! Analyze sparse matrix; chose proper kernels and workload balancing strategy
-        info = MKL_SPARSE_OPTIMIZE(H_matrix_csr)
+        ! info = MKL_SPARSE_OPTIMIZE(H_matrix_csr)
 
-        print *, "optimization of H matrix = ", info
+        ! print *, "optimization of H matrix = ", info
 
         !Doing a product of three csr matrices P @ H @ P.T
-        stat_csr_mutliplication = mkl_sparse_sypr(SPARSE_OPERATION_NON_TRANSPOSE, p_matrix_csr, H_matrix_csr, descrB, H_matrix_permuted, SPARSE_STAGE_FULL_MULT)
+        ! stat_csr_mutliplication = mkl_sparse_sypr(SPARSE_OPERATION_NON_TRANSPOSE, p_matrix_csr, H_matrix_csr, descrB, H_matrix_permuted, SPARSE_STAGE_FULL_MULT)
 
-        print *, "stat P @ H matrix @ P.T  = ", stat_csr_mutliplication
+        ! print *, "stat P @ H matrix @ P.T  = ", stat_csr_mutliplication
 
         ! export the Hamiltonian in CSR format matrix from the internal representation
-        stat_export = mkl_sparse_d_export_csr(H_matrix_permuted, indexing, nrow, ncol, ia_start, ia_end, ja, values)
+        ! stat_export = mkl_sparse_d_export_csr(H_matrix_permuted, indexing, nrow, ncol, ia_start, ia_end, ja, values)
         
-        print *, "Export H permuted to csr3  = ", stat_export
-        info = mkl_sparse_order(H_matrix_permuted)
-        print *, "Ordering H permuted  = ", info
+        ! print *, "Export H permuted to csr3  = ", stat_export
+        ! info = mkl_sparse_order(H_matrix_permuted)
+        ! print *, "Ordering H permuted  = ", info
 
         !   Converting C into Fortran pointers
-        call C_F_POINTER(ia_start, ia_export_B, [nrow])
-        call C_F_POINTER(ia_end  , ia_export_E  , [nrow]) 
-        call C_F_POINTER(ja  , ja_export  , [ia_export_E(nrow)-indexing])
-        call C_F_POINTER(values    , values_array_export    , [ia_export_E(nrow)-indexing])
+        ! call C_F_POINTER(ia_start, ia_export_B, [nrow])
+        ! call C_F_POINTER(ia_end  , ia_export_E  , [nrow]) 
+        ! call C_F_POINTER(ja  , ja_export  , [ia_export_E(nrow)-indexing])
+        ! call C_F_POINTER(values    , values_array_export    , [ia_export_E(nrow)-indexing])
         
-        write(*,*)  ' '
-        write(*,*) 'Exported CSR format of H permuted: '
-        print *, 'values array: ', values_array_export
-        print *, 'ja_H_permuted: ', ja_export
-        print *, 'ia_H_permuted; pointerB: ', ia_export_B
-        print *, 'ia_H_permuted; pointerE: ', ia_export_E
+        ! write(*,*)  ' '
+        ! write(*,*) 'Exported CSR format of H permuted: '
+        ! print *, 'values array: ', values_array_export
+        ! print *, 'ja_H_permuted: ', ja_export
+        ! print *, 'ia_H_permuted; pointerB: ', ia_export_B
+        ! print *, 'ia_H_permuted; pointerE: ', ia_export_E
 
 
         !   Release internal representation of CSR matrix
-        info = mkl_sparse_destroy(p_matrix_csr)
-        info = mkl_sparse_destroy(H_matrix_csr)
-        info = mkl_sparse_destroy(H_matrix_permuted)
+        ! info = mkl_sparse_destroy(p_matrix_csr)
+        ! info = mkl_sparse_destroy(H_matrix_csr)
+        ! info = mkl_sparse_destroy(H_matrix_permuted)
 
-        deallocate(values_array_per, ia_per, ja_per)
-        deallocate(values_array_H, ia_H, ja_H)
+        ! deallocate(values_array_per, ia_per, ja_per)
+        ! deallocate(values_array_H, ia_H, ja_H)
 
-    end subroutine CSR_matrix_multiplication_for_3_matrices
+    ! end subroutine CSR_matrix_multiplication_for_3_matrices
 
     subroutine H_XXX_full()
         use omp_lib
