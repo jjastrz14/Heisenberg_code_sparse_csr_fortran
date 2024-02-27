@@ -1,6 +1,7 @@
 include "mkl_vsl.f90" !necessary for intel mkl random numbers
 
 module tests_module
+    implicit none
     contains
     
     subroutine omp_mkl_small_test()

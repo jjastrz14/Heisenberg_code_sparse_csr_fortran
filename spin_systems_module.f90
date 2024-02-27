@@ -1,7 +1,9 @@
 module spin_systems
+    implicit none
     contains
 
     subroutine Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
+        use math_functions
         implicit none
         integer, intent(in) :: N_spin
         double precision, intent(in) :: Sz_choice

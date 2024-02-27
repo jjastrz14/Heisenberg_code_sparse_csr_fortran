@@ -1,6 +1,31 @@
 module math_functions
     implicit none
     contains
+    
+    subroutine binomialCoefficient(n, k, C)
+        integer, intent(in)  :: n, k
+        integer, intent(out) :: C
+        !use, intrinsic :: iso_fortran_env, only: real64, int64
+        !integer(int64) :: x
+        integer :: i
+        integer :: C_temp
+ 
+        C_temp = 1
+ 
+        if (k < 0 .or. k > n) then
+          C_temp = 0
+        else
+          do i = 1, min(k, n-k)
+            C_temp = C_temp * (n - i + 1) / i
+            if (C_temp.GT.2147483647) then
+                write(*,*) 'possible integer 32bit 2^32 = 2147483647 overflow'
+                error stop
+            end if
+          end do
+        end if
+ 
+        C = C_temp
+    end subroutine binomialCoefficient
 
     subroutine mmm_mat_mul(D, A, B, C, op_A, op_B, op_C)
         implicit none

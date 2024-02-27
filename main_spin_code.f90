@@ -61,7 +61,7 @@ program spin_code
     call cpu_time(start)
     write(*,*) '------- START Heisenberg Program -------'
     N_spin_max = 2**N_spin 
-    allocate(hash_Sz(N_spin_max), target_sz(N_spin+1))
+    allocate(hash(N_spin_max), target_sz(N_spin+1))
     allocate(indices_Sz_basis_sorted(N_spin_max), Sz_basis(N_spin_max), basis_vector(N_spin_max, N_spin))
 
     !write(*,*) '------- CSR Heisenberg Program -------'
