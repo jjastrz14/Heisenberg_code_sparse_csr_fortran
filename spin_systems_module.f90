@@ -268,7 +268,7 @@ module spin_systems
            !If the initial guess is wrong, Extended Eigensolver routines return info=3.
         n = Sz_subspace_size
         allocate( x(n,m0), e(m0), res(m0) )
-        write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+        !write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
         write(*,*) 'Before dfeast_scsrev... '
         call dfeast_scsrev(uplo, n, val_arr, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
         write(*,*) 'eps_out= ', epsout
