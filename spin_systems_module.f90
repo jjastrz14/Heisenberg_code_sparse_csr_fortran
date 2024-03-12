@@ -115,7 +115,7 @@ module spin_systems
         
         integer :: il, iu, ldz, liwork, lwork, info, m_eig, n
 
-        open (unit=10, file="H_eig_Sz_sub_01Dec2023.dat", recl=512)
+        open (unit=10, file="H_eig_Sz_sub_11Mar2024.dat", recl=512)
         ! lets rewrite our matlab code
         ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
 

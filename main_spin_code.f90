@@ -34,6 +34,8 @@ program spin_code
     !od teraz wersja kodu Maćka 
     ! entropie liczymy w pythonie 
 
+    !11.03/2024 - powrót do kodu :)
+
 
     If(command_argument_count().NE.2) Then
         write(*,*)'Error, Only N (integer) and J (double precision) is required, program stopped'
@@ -78,13 +80,18 @@ program spin_code
     print *, "All combination of S_z spin", target_sz
     write(*,*) " "
 
-    file_name1 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
-    open (unit=1, file= trim(file_name1), recl=512)
-    write(1,*), "# Eigenvalue     Spin_z    Sum_of_lambdas"
+    !file_name1 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
+    !open (unit=1, file= trim(file_name1), recl=512)
+    !write(1,*), "# Eigenvalue     Spin_z    Sum_of_lambdas"
 
     Sz_choice = 0.0d0 ! integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
     call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
     ! above we confirmed Sz_choice works
+
+    write(*,*) 'Summary of hash_Sz basis: '
+    do i=1, Sz_subspace_size
+        write(* ,*) i, hash_Sz(i)
+    end do
 
     call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_subspace_size, hash_Sz) !here only csr3
 
@@ -191,7 +198,7 @@ program spin_code
     ! end do 
     ! !$OMP END PARALLEL DO
     
-    close(1)
+    !close(1)
     !deallocate(Sz_basis, basis_vector, target_sz, indices_Sz_basis_sorted)
 
 
