@@ -33,7 +33,7 @@ module spin_systems
         integer, intent(in) :: N_spin
         double precision, intent(in) :: Sz_choice
         integer, intent(out) :: Sz_subspace_size
-        integer, allocatable :: hash_Sz(:)
+        integer, allocatable, intent(out) :: hash_Sz(:)
         
         integer :: N_spin_max, i, j, ind_2, Sz_choice_ind
         double precision :: Sz
@@ -111,12 +111,15 @@ module spin_systems
     end subroutine Sz_subspace_choice
 
 
-    subroutine H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_subspace_size, hash_Sz, e, x)
+    subroutine H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
         use omp_lib
         use mkl_vsl
         implicit none
         
+        !character(len = 12), intent(in) :: N_spin_char
+        !character(len = 53) :: file_name1
         integer, intent(in) :: N_spin, Sz_subspace_size
+        double precision, intent(in) :: Sz_choice
         integer, allocatable :: hash_Sz(:), list_of_ind(:,:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
         logical, allocatable :: list_of_ind_bool(:)
         double precision, intent(in) :: J_spin
@@ -132,7 +135,7 @@ module spin_systems
         double precision :: epsout
         integer :: loop
         double precision, allocatable, intent(out) :: e(:)
-        integer :: m
+        integer, intent(out) :: m
         double precision, allocatable :: res(:)
         
         CHARACTER*1 :: jobz, range, uplo
@@ -207,12 +210,12 @@ module spin_systems
         end do
         
         ja_val_arr_size = sum(open_mp_counter)
-        write(*,*) 'necessary ja and val_arr size = ', ja_val_arr_size
+        !write(*,*) 'necessary ja and val_arr size = ', ja_val_arr_size
         
         
-        do ind_3 = 1, size_of_list
-            write(*,*) ind_3, list_of_ind(ind_3,1), list_of_ind(ind_3,2), list_of_ind_bool(ind_3)                    
-        end do
+        !do ind_3 = 1, size_of_list
+            !write(*,*) ind_3, list_of_ind(ind_3,1), list_of_ind(ind_3,2), list_of_ind_bool(ind_3)                    
+        !end do
         
         allocate( list_of_ind_2(ja_val_arr_size, 2) )
     ! allocate( list_of_ind_bool_2(ja_val_arr_size) )
@@ -222,7 +225,7 @@ module spin_systems
             if( list_of_ind_bool(ind_3) ) then
                 list_of_ind_2(ind_temp, 1) = list_of_ind(ind_3, 1)
                 list_of_ind_2(ind_temp, 2) = list_of_ind(ind_3, 2)
-                write(*,*) ind_3, list_of_ind_2(ind_temp, 1), list_of_ind_2(ind_temp, 2)
+                !write(*,*) ind_3, list_of_ind_2(ind_temp, 1), list_of_ind_2(ind_temp, 2)
                 ind_temp = ind_temp+1
             end if
         end do
@@ -240,7 +243,7 @@ module spin_systems
             ind_i = hash_Sz( list_of_ind_2(ind_3, 1) )
             ind_j = hash_Sz( list_of_ind_2(ind_3, 2) )
             call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
-            write(*,*) 'id ', omp_id , 'ind_3', ind_3, ind_i, ind_j, H_full_ij
+            !write(*,*) 'id ', omp_id , 'ind_3', ind_3, ind_i, ind_j, H_full_ij
             val_arr(ind_3) = H_full_ij
             ja(ind_3) = list_of_ind_2(ind_3, 2)
         end do
@@ -258,15 +261,15 @@ module spin_systems
         end do
         ia(Sz_subspace_size +1) = ind_temp
         
-        write(*,*) 'ia: '
-        do ind_3 = 1, Sz_subspace_size+1
-            write(*,*) ind_3, ia(ind_3)    
-        end do
+        !write(*,*) 'ia: '
+        !do ind_3 = 1, Sz_subspace_size+1
+        !    write(*,*) ind_3, ia(ind_3)    
+        !end do
         
-        write(*,*) 'ja and val_arr:'
-        do ind_3 = 1, ja_val_arr_size
-            write(*,*) ind_3, ja(ind_3), val_arr(ind_3)
-        end do
+        !write(*,*) 'ja and val_arr:'
+        !do ind_3 = 1, ja_val_arr_size
+        !    write(*,*) ind_3, ja(ind_3), val_arr(ind_3)
+        !end do
 
         !FEAST diagonalization
 
@@ -303,21 +306,29 @@ module spin_systems
         write(*,*) 'problem with  dfeast_scsrev, info=', info
         end if 
 
-        write(*,*) ' dfeast_scsrev eigenvalues found= ', m
-        do i = 1, m
-            write(*,*) i, e(i)
-        end do
+        !file_name1 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
+        !open (unit=1, file= trim(file_name1), recl=512)
+        !write(1,*), "#Eigenvalue     Spin_z   norm" 
 
-        write(*,*) ' dfeast_scsrev eigenvec norm:'
-        do i=1,m
-            norm = 0.0d0
-            do j=1, n
-                norm = norm + x(j,i)*(x(j,i))
-            end do
-            write(*,*) i, norm
-        end do
-                
-        deallocate( val_arr, ia, ja, x, e, res)
+        !write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+        !do i = 1, m
+         !   write(*,*) i, e(i)
+        !end do
+
+        !write(*,*) ' dfeast_scsrev eigenvec norm:'
+        !do i=1,m
+        !    norm = 0.0d0
+         !   do j=1, n
+         !       norm = norm + x(j,i)*(x(j,i))
+         !   end do
+         !   write(*,*) i, norm
+          !  write(1,*) e(i), ',' , Sz_choice, ',', norm
+            
+        !end do
+
+        !close(1)      
+        !deallocate( val_arr, ia, ja, x, e, res)
+        deallocate( val_arr, ia, ja, res)
         deallocate( list_of_ind_2 )
         deallocate( open_mp_counter )
 
@@ -709,7 +720,7 @@ module spin_systems
         double precision :: epsout
         integer :: loop
         double precision, allocatable :: e(:)
-        integer :: m
+        integer:: m
         double precision, allocatable :: res(:)
         
         write(*,*) '----------- Double precision FEAST test START small matrix: -----------'
@@ -827,13 +838,14 @@ program spin_code
     use spin_systems
     implicit none
 
-    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i, k, target_sz_spin, number_of_eigen, Sz_subspace_size
-    double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down
+    integer :: N_spin, N_spin_test, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i,j, k, target_sz_spin, number_of_eigen, Sz_subspace_size, size_of_eigenvalues, m
+    double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down, norm
     double precision :: start, finish, finish_one_spin, start_one_spin, Sz_choice
     character(len = 12) :: N_spin_char, J_spin_char
-    character(len=53) :: dec2bin, spin_basis, file_name1
+    character(len=53) :: dec2bin, spin_basis, file_name1, file_name2
     integer, allocatable :: Sz_basis(:), hash_Sz(:), hash(:), indices_Sz_basis_sorted(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
-    double precision, allocatable :: target_sz(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
+    double precision, allocatable :: target_sz(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:), e(:), x(:,:)
+
     ! OPIS DO POPRAWY! 
     ! Version 20.07 - dodajemy tworzenie bazy i liczenie entropii
     ! tworzenie bazy i s_z działa
@@ -857,7 +869,7 @@ program spin_code
     !11.03/2024 - powrót do kodu :)
 
     If(command_argument_count().NE.2) Then
-        write(*,*)'Error, Only N (integer) and J (double precision) is required, program stopped'
+        write(*,*)'Error, Only N (integer) and J (double precision) is required, program stopped two many or parameter is missing'
         stop 
     endif 
 
@@ -882,50 +894,80 @@ program spin_code
     call cpu_time(start)
     write(*,*) '------- START Heisenberg Program -------'
     N_spin_max = 2**N_spin 
-    allocate(hash(N_spin_max), target_sz(N_spin+1))
-    allocate(indices_Sz_basis_sorted(N_spin_max), Sz_basis(N_spin_max), basis_vector(N_spin_max, N_spin))
+    allocate(target_sz(N_spin-1))
 
-    do i = 0, N_spin
-        target_sz(i+1) = N_spin/2 - i
+    file_name1 = 'Test_Eigenvalues_results_feast.dat'
+    file_name2 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
+    open (unit=1, file= trim(file_name1), recl=512)
+    open (unit=2, file= trim(file_name2), recl=512)
+    write(1,*), "#Eigenvalue     Spin_z   norm" 
+    write(2,*), "#Eigenvalue     Spin_z   norm" 
+    
+
+    do i = 1, N_spin - 1
+        target_sz(i) = N_spin/2.0 - i
     end do 
 
     print *, "All combination of S_z spin", target_sz
     write(*,*) " "
-
-    file_name1 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
-    open (unit=1, file= trim(file_name1), recl=512)
-    write(1,*), "# Eigenvalue     Spin_z"  
-
+    
+    write(*,*) '------- START Heisenberg diagonalisation test -------'
+    N_spin_test = 4
     Sz_choice = 0.0d0 ! integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
-    call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
+    call Sz_subspace_choice(N_spin_test, Sz_choice, hash_Sz, Sz_subspace_size)
     ! above we confirmed Sz_choice works
 
-    write(*,*) 'Summary of hash_Sz basis: '
-    do i=1, Sz_subspace_size
-        write(* ,*) i, hash_Sz(i)
+    call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m) !here only csr3
+
+    write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+    do i = 1, m
+        write(*,*) i, e(i)
     end do
 
-    call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_subspace_size, hash_Sz, eigen_values, eigen_vectors) !here only csr3
-
-    write(*,*) 'Saving to file '
-    do i = 1, size(eigen_values)
-        write(10,*) i, eigen_values(i), Sz_choice
+    write(*,*) ' dfeast_scsrev eigenvec norm:'
+    do i=1,m
+        norm = 0.0d0
+        do j=1, Sz_subspace_size
+            norm = norm + x(j,i)*(x(j,i))
+        end do
+        write(*,*) i, norm
+        write(1,*) e(i), ',' , Sz_choice, ',', norm
+        
     end do
 
-    !write(*,*) ' dfeast_scsrev eigenvec norm:'
-    !do i=1,m
-        !norm = 0.0d0
-        !do j=1, n
-            !norm = norm + x(j,i)*(x(j,i))
-        !end do
-        !write(*,*) i, norm
-    !end do
+    write(*,*) '------- END Heisenberg diagonalisation test -------'
 
+    write(*,*) '------- Start Heisenberg diagonalisation loop -------'
+
+    do k = 1, size(target_sz)
+        Sz_choice = target_sz(k)
+        write(*,*) 'Start loop for Sz =', Sz_choice
+
+        call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
+        call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
+
+        write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+        write(*,*) ' dfeast_scsrev eigenvec norm:'
+        do i=1,m
+            norm = 0.0d0
+            do j=1, Sz_subspace_size
+                norm = norm + x(j,i)*(x(j,i))
+            end do
+            write(2,*) e(i), ',' , Sz_choice, ',', norm
+        end do 
+
+        deallocate(e, x, hash_Sz)
+
+    end do
+
+    close(1) 
+    close(2)  
+    deallocate(target_sz)
+    write(*,*) '------- END Heisenberg diagonalisation loop -------'  
     write(*,*) " "
     write(*,*) "Program executed with success"
     call cpu_time(finish)
     print '("Time = ",f," seconds.")',finish-start
-    close(1)
     write(*,*) '------- END Heisenberg Program -------'
 
     
