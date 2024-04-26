@@ -117,7 +117,7 @@ module spin_systems
         implicit none
         
         !character(len = 12), intent(in) :: N_spin_char
-        !character(len = 53) :: file_name1
+        integer , dimension(8) :: start_csr, finish_csr, start_diag, finish_diag
         integer, intent(in) :: N_spin, Sz_subspace_size
         double precision, intent(in) :: Sz_choice
         integer, allocatable :: hash_Sz(:), list_of_ind(:,:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
@@ -130,7 +130,7 @@ module spin_systems
 
         double precision, allocatable, intent(out) :: x(:,:)
         integer :: fpm(128)
-        double precision :: emin, emax, start_csr, finish_csr, start_diag, finish_diag
+        double precision :: emin, emax
         integer :: m0
         double precision :: epsout
         integer :: loop
@@ -144,7 +144,6 @@ module spin_systems
 
         ! lets rewrite our matlab code
         ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
-        call cpu_time(start_csr)
 
         N_spin_max = 2**N_spin
         write(*,*) 'be carefull about N_spin_max max size - large integer possibility'
@@ -271,12 +270,9 @@ module spin_systems
         !do ind_3 = 1, ja_val_arr_size
         !    write(*,*) ind_3, ja(ind_3), val_arr(ind_3)
         !end do
-        call cpu_time(finish_csr)
-        print '("Csr filling time = ",f," seconds.")',finish_csr - start_csr
-        write(3,*) "Csr filling time = ", finish_csr - start_csr ," seconds."
+    
 
         !FEAST diagonalization
-        call cpu_time(start_diag)
 
         !n=n     ! Sets the size of the problem
         !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
@@ -311,10 +307,6 @@ module spin_systems
         write(*,*) 'problem with  dfeast_scsrev, info=', info
         end if 
 
-        call cpu_time(finish_diag)
-        print '("Diagonalisation time = ",f," seconds.")', finish_diag - start_diag
-        write(3,*) "Diagonalisation time = ",finish_diag - start_diag ," seconds."
-
         !file_name1 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
         !open (unit=1, file= trim(file_name1), recl=512)
         !write(1,*), "#Eigenvalue     Spin_z   norm" 
@@ -342,6 +334,257 @@ module spin_systems
         deallocate( open_mp_counter )
 
     end subroutine H_XXX_subspace_fill_and_diag_fast
+
+
+    subroutine H_XXX_subspace_fill_and_diag_fast_time_window(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
+        use omp_lib
+        use mkl_vsl
+        implicit none
+        !character(len = 12), intent(in) :: N_spin_char
+        integer, dimension(8) :: start_csr, finish_csr, start_diag, finish_diag
+        integer, intent(in) :: N_spin, Sz_subspace_size
+        double precision, intent(in) :: Sz_choice
+        integer, allocatable :: hash_Sz(:), list_of_ind(:,:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
+        logical, allocatable :: list_of_ind_bool(:)
+        double precision, intent(in) :: J_spin
+        integer :: i, j, ind_i, ind_j, N_spin_max, ind_Sz_1, ind_Sz_2, ind_3, size_of_1D_list_for_sweep, &
+                size_of_list, ja_val_arr_size, ind_temp, ind_temp_2, omp_id, threads_max
+        double precision, allocatable :: H_full(:,:), val_arr(:)
+        double precision :: norm, H_full_ij, element_value_cutoff, e_min_reg, e_max_reg
+        double precision, allocatable, intent(out) :: x(:,:)
+        integer :: fpm(128)
+        double precision :: emin, emax
+        integer :: m0
+        double precision :: epsout, t1, t2
+        integer :: loop
+        double precision, allocatable, intent(out) :: e(:)
+        integer, intent(out) :: m
+        double precision, allocatable :: res(:)
+        
+        CHARACTER*1 :: jobz, range, uplo
+        
+        integer :: il, iu, ldz, liwork, lwork, info, m_eig, n
+
+        ! lets rewrite our matlab code
+        ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
+        call date_and_time(VALUES=start_csr)
+        t1 = omp_get_wtime()
+
+        N_spin_max = 2**N_spin
+        write(*,*) 'be carefull about N_spin_max max size - large integer possibility'
+        write(*,*) 'test for N_spin_max', N_spin_max
+        
+        ! 1D list for fast sweep
+        size_of_list = Sz_subspace_size*(Sz_subspace_size + 1  ) / 2
+        allocate( list_of_ind(size_of_list, 2) )
+        allocate( list_of_ind_bool(size_of_list) )
+        list_of_ind_bool = .FALSE.
+        ind_3 = 1
+        do ind_Sz_1 = 1        , Sz_subspace_size
+        do ind_Sz_2 = ind_Sz_1 , Sz_subspace_size
+            list_of_ind(ind_3,1) = ind_Sz_1
+            list_of_ind(ind_3,2) = ind_Sz_2
+            ind_3 = ind_3 + 1
+        end do
+        end do
+        
+        ! fast 1D sweep calculating size of ja and val_arr vectors
+        write(*,*) 'OpenMP processors check'
+        threads_max = omp_get_max_threads()
+        write(*,*) 'OpenMP thread max num check', threads_max
+        
+        allocate(open_mp_counter(threads_max) )
+        open_mp_counter = 0
+        
+            omp_id = omp_get_thread_num()
+            !open_mp_counter(omp_id+1) = open_mp_counter(omp_id+1) + 1
+            !write(*,*) 'OpenMP thread check', omp_id
+
+        element_value_cutoff =  10.0d0**(-8.00d0) ! only larger elements are taken as non-zero
+        !ja_val_arr_size = 0
+        !$OMP PARALLEL DO PRIVATE(ind_3, omp_id, ind_Sz_1, ind_Sz_2, ind_i, ind_j, H_full_ij) &
+                        SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff) &
+                        default(none)
+                        
+        do ind_3 = 1, size_of_list
+            omp_id = omp_get_thread_num()
+            ind_Sz_1 = list_of_ind(ind_3,1)
+            ind_Sz_2 = list_of_ind(ind_3,2)
+            if (ind_Sz_1 == ind_Sz_2) then
+                !ja_val_arr_size = ja_val_arr_size + 1
+                open_mp_counter(omp_id+1) = open_mp_counter(omp_id+1) + 1
+                list_of_ind_bool(ind_3) = .TRUE.
+            else if (ind_Sz_2 .GT. ind_Sz_1) then 
+                ind_i = hash_Sz(ind_Sz_1)
+                ind_j = hash_Sz(ind_Sz_2)
+                call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
+                if ( abs(H_full_ij) .GT. element_value_cutoff ) then
+                    !ja_val_arr_size = ja_val_arr_size + 1
+                    open_mp_counter(omp_id+1) = open_mp_counter(omp_id+1) + 1
+                    list_of_ind_bool(ind_3) = .TRUE.
+                end if
+            else
+                write(*,*) 'some error in 1D list'
+                end if
+        end do
+        !$OMP END PARALLEL DO 
+        
+        write(*,*) 'test of open_mp_counter'
+        do i = 1, threads_max
+            write(*,*) i, open_mp_counter(i)
+        end do
+        
+        ja_val_arr_size = sum(open_mp_counter)
+        !write(*,*) 'necessary ja and val_arr size = ', ja_val_arr_size
+        
+        
+        !do ind_3 = 1, size_of_list
+            !write(*,*) ind_3, list_of_ind(ind_3,1), list_of_ind(ind_3,2), list_of_ind_bool(ind_3)                    
+        !end do
+        
+        allocate( list_of_ind_2(ja_val_arr_size, 2) )
+    ! allocate( list_of_ind_bool_2(ja_val_arr_size) )
+        
+        ind_temp = 1
+        do ind_3 = 1, size_of_list
+            if( list_of_ind_bool(ind_3) ) then
+                list_of_ind_2(ind_temp, 1) = list_of_ind(ind_3, 1)
+                list_of_ind_2(ind_temp, 2) = list_of_ind(ind_3, 2)
+                !write(*,*) ind_3, list_of_ind_2(ind_temp, 1), list_of_ind_2(ind_temp, 2)
+                ind_temp = ind_temp+1
+            end if
+        end do
+        
+        deallocate (list_of_ind, list_of_ind_bool)
+        allocate( ia( Sz_subspace_size+1), ja(ja_val_arr_size), val_arr(ja_val_arr_size) )
+        !ia and ja inside list_of_ind_2
+        
+        !asynchronous filling of val_arr!
+        !$OMP PARALLEL DO PRIVATE(ind_3, ind_i, ind_j, H_full_ij, omp_id) &
+                        SHARED(ja_val_arr_size, hash_Sz, list_of_ind_2, N_spin, J_spin, val_arr, ja) &
+                        default(none)
+        do ind_3 = 1, ja_val_arr_size      
+            omp_id = omp_get_thread_num()
+            ind_i = hash_Sz( list_of_ind_2(ind_3, 1) )
+            ind_j = hash_Sz( list_of_ind_2(ind_3, 2) )
+            call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
+            !write(*,*) 'id ', omp_id , 'ind_3', ind_3, ind_i, ind_j, H_full_ij
+            val_arr(ind_3) = H_full_ij
+            ja(ind_3) = list_of_ind_2(ind_3, 2)
+        end do
+        !$OMP END PARALLEL DO 
+        
+        ! loop to calculate ia()
+        ind_temp = 1
+        ind_temp_2 = 1
+        do ind_3 = 1, Sz_subspace_size                
+            ia(ind_3) = ind_temp
+            DO WHILE ( list_of_ind_2(ind_temp_2, 1) == ind_3 ) 
+                ind_temp = ind_temp+1
+                ind_temp_2 = ind_temp_2 + 1
+            END DO 
+        end do
+        ia(Sz_subspace_size +1) = ind_temp
+        
+        !write(*,*) 'ia: '
+        !do ind_3 = 1, Sz_subspace_size+1
+        !    write(*,*) ind_3, ia(ind_3)    
+        !end do
+        
+        !write(*,*) 'ja and val_arr:'
+        !do ind_3 = 1, ja_val_arr_size
+        !    write(*,*) ind_3, ja(ind_3), val_arr(ind_3)
+        !end do
+        call date_and_time(VALUES=finish_csr) !end time counter
+        t2 = omp_get_wtime()
+
+        !old example for date_and_time
+        !write(*,*) 'Csr filling time = ', &
+            !(((finish_csr(5) - start_csr(5))*3600 + &
+            !(finish_csr(6) - start_csr(6))*60 + &
+            !(finish_csr(7) - start_csr(7)))*1000 + &
+            !(finish_csr(8) - start_csr(8)))/1000, "seconds."
+
+        print '("Csr filling time = ",f," seconds.")',t2-t1
+        write(3,*) "Csr filling time = ", t2-t1 ," seconds."
+
+        !Calculation of energy bounds for the chain problem according to the previous estimations: 
+        e_min_reg = -0.4465d0 * N_spin + 0.1801d0
+        e_max_reg = -0.49773d0 * N_spin + 2.10035d0
+
+        write(*,*) "Calculated lower bound: ", e_min_reg
+        write(*,*) "Calculated upper bound: ", e_max_reg
+        !FEAST diagonalization
+
+        !n=n     ! Sets the size of the problem
+        !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+        call feastinit (fpm)  ! function specifying default parameters fpm of FEAST algorithm
+        fpm(1) = 1
+        fpm(2) = 12 !can be more, can be less
+        fpm(3) = 8 !eps 10^-fpm(3)
+        fpm(4) = 20 ! max number of feast loops
+        fpm(5) = 0 !initial subspace
+        fpm(6) = 0! stopping criterion
+        fpm(7) = 5 !Error trace sigle prec stop crit
+        fpm(14) = 0 ! standard use of feast
+        fpm(27) = 1 !check input matrices
+        fpm(28) = 1 !check if B is positive definite?         
+        uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
+        emin = e_min_reg! The lower ... &
+        emax = e_max_reg  !  and upper bounds of the interval to be searched for eigenvalues
+        m0 = 12 !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0?n. 
+        !Set m0 ? m where m is the total number of eigenvalues located in the interval [emin, emax]. 
+        !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+        n = Sz_subspace_size
+        allocate( x(n,m0), e(m0), res(m0) )
+        !write(*,*) 'Windows 11 new feature: feast might work only for Relase, not Debug!'
+        write(*,*) 'Before dfeast_scsrev... '
+
+        call date_and_time(VALUES=start_diag)
+        t1 = omp_get_wtime()
+        call dfeast_scsrev(uplo, n, val_arr, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
+        t2 = omp_get_wtime()
+        call date_and_time(VALUES=finish_diag)
+        
+        write(*,*) 'eps_out= ', epsout
+        write(*,*) 'loop= ', loop
+        write(*,*) ' dfeast_scsrev info=', info
+        write(*,*) 'After  dfeast_scsrev... '
+        
+        if (info /= 0) then
+        write(*,*) 'problem with  dfeast_scsrev, info=', info
+        end if 
+
+        print '("Diagonalisation time = ",f," seconds.")',t2-t1
+        write(3, *) "Diagonalisation time = ", t2-t1 ," seconds."
+
+        !file_name1 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
+        !open (unit=1, file= trim(file_name1), recl=512)
+        !write(1,*), "#Eigenvalue     Spin_z   norm" 
+
+        !write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+        !do i = 1, m
+         !   write(*,*) i, e(i)
+        !end do
+
+        !write(*,*) ' dfeast_scsrev eigenvec norm:'
+        !do i=1,m
+        !    norm = 0.0d0
+         !   do j=1, n
+         !       norm = norm + x(j,i)*(x(j,i))
+         !   end do
+         !   write(*,*) i, norm
+          !  write(1,*) e(i), ',' , Sz_choice, ',', norm
+            
+        !end do
+
+        !close(1)      
+        !deallocate( val_arr, ia, ja, x, e, res)
+        deallocate( val_arr, ia, ja, res)
+        deallocate( list_of_ind_2 )
+        deallocate( open_mp_counter )
+
+    end subroutine H_XXX_subspace_fill_and_diag_fast_time_window
 
 
     subroutine H_XXX_filling(N_spin, J_spin, i, j, H_full_ij)
@@ -845,6 +1088,7 @@ end module spin_systems
 
 program spin_code
     use spin_systems
+    use omp_lib
     implicit none
 
     integer :: N_spin, N_spin_test, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i,j, k, target_sz_spin, number_of_eigen, Sz_subspace_size, size_of_eigenvalues, m
@@ -900,55 +1144,61 @@ program spin_code
     ! call sparse_zfeast_test()
     call sparse_dfeast_test()
 
-    call cpu_time(start)
+    start = omp_get_wtime()
     write(*,*) '------- START Heisenberg Program -------'
     N_spin_max = 2**N_spin 
     allocate(target_sz(N_spin-1))
 
-    file_name1 = 'Test_Eigenvalues_results_feast.dat'
+    !file_name1 = 'Test_Eigenvalues_results_feast.dat'
     file_name2 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
     file_name3 = 'Cpu_Time_details_' // trim(adjustl(N_spin_char)) // '.dat'
 
-    open (unit=1, file= trim(file_name1), recl=512)
+    !open (unit=1, file= trim(file_name1), recl=512)
     open (unit=2, file= trim(file_name2), recl=512)
     open (unit=3, file= trim(file_name3), recl=512)
-    write(1,*), "#Eigenvalue     Spin_z   norm" 
+    !write(1,*), "#Eigenvalue     Spin_z   norm" 
     write(2,*), "#Eigenvalue     Spin_z   norm" 
     write(3,*), "#Time needed for each process"
     
-
-    do i = 1, N_spin - 1
-        target_sz(i) = N_spin/2.0 - i
-    end do 
+    ! generate a target_sz array storing all possible Sz values
+    if (mod(N_spin, 2) == 0) then
+        do i = 1, N_spin - 1
+            target_sz(i) = N_spin/2.0d0 - i
+        end do 
+    else
+        do i = 1, N_spin - 1
+            target_sz(i) = (N_spin - 1)/2.0d0 - i
+        end do 
+    end if
 
     print *, "All combination of S_z spin", target_sz
     write(*,*) " "
     
-    write(*,*) '------- START Heisenberg diagonalisation test -------'
-    N_spin_test = 4
-    Sz_choice = 0.0d0 ! integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
-    call Sz_subspace_choice(N_spin_test, Sz_choice, hash_Sz, Sz_subspace_size)
+    !write(*,*) '------- START Heisenberg diagonalisation test -------'
+    !N_spin_test = 4
+    !Sz_choice = 0.0d0 ! integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
+    !call Sz_subspace_choice(N_spin_test, Sz_choice, hash_Sz, Sz_subspace_size)
     ! above we confirmed Sz_choice works
-    write(3,*), "#Heisenberg diagonalisation test: N = 4"
-    call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m) !here only csr3
+    !write(3,*), "#Heisenberg diagonalisation test: N = 4"
+    !call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m) !here only csr3
 
-    write(*,*) ' dfeast_scsrev eigenvalues found= ', m
-    do i = 1, m
-        write(*,*) i, e(i)
-    end do
+    !write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+    !do i = 1, m
+    !    write(*,*) i, e(i)
+    !end do
 
-    write(*,*) ' dfeast_scsrev eigenvec norm:'
-    do i=1,m
-        norm = 0.0d0
-        do j=1, Sz_subspace_size
-            norm = norm + x(j,i)*(x(j,i))
-        end do
-        write(*,*) i, norm
-        write(1,*) e(i), ',' , Sz_choice, ',', norm
+    !write(*,*) ' dfeast_scsrev eigenvec norm:'
+    !do i=1,m
+    !    norm = 0.0d0
+    !    do j=1, Sz_subspace_size
+    !        norm = norm + x(j,i)*(x(j,i))
+    !    end do
+    !    write(*,*) i, norm
+    !   write(1,*) e(i), ',' , Sz_choice, ',', norm
         
-    end do
+    !end do
 
-    write(*,*) '------- END Heisenberg diagonalisation test -------'
+    !write(*,*) '------- END Heisenberg diagonalisation test -------'
 
     write(*,*) '------- Start Heisenberg diagonalisation loop -------'
 
@@ -968,7 +1218,7 @@ program spin_code
     write(3,*), "#Heisenberg diagonalisation: N = " , N_spin_char
 
     call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
-    call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
+    call H_XXX_subspace_fill_and_diag_fast_time_window(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
 
     write(*,*) ' dfeast_scsrev eigenvalues found= ', m
     write(*,*) ' dfeast_scsrev eigenvec norm:'
@@ -988,9 +1238,9 @@ program spin_code
     write(*,*) '------- END Heisenberg diagonalisation loop -------'  
     write(*,*) " "
     write(*,*) "Program executed with success"
-    call cpu_time(finish)
+    finish = omp_get_wtime()
     print '("Final time = ",f," seconds.")',finish-start
-    write(3,*) "Final time = ", finish-start ," seconds." 
+    write(3, *) "Final time = ", finish-start ," seconds." 
     close(1) 
     close(2)  
     close(3)
