@@ -1160,16 +1160,12 @@ program spin_code
     write(2,*), "#Eigenvalue     Spin_z   norm" 
     write(3,*), "#Time needed for each process"
     
-    ! generate a target_sz array storing all possible Sz values
-    if (mod(N_spin, 2) == 0) then
-        do i = 1, N_spin - 1
+    ! generate a target_sz array storing all possible Sz values for N_spin 
+    
+    do i = 1, N_spin - 1
             target_sz(i) = N_spin/2.0d0 - i
-        end do 
-    else
-        do i = 1, N_spin - 1
-            target_sz(i) = (N_spin - 1)/2.0d0 - i
-        end do 
-    end if
+    end do 
+
 
     print *, "All combination of S_z spin", target_sz
     write(*,*) " "
