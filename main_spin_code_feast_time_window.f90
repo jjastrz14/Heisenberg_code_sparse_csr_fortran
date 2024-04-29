@@ -376,6 +376,7 @@ module spin_systems
         
         ! 1D list for fast sweep
         size_of_list = Sz_subspace_size*(Sz_subspace_size + 1  ) / 2
+        write(*,*) 'Before the lists allocation for 1d sweep'
         allocate( list_of_ind(size_of_list, 2) )
         allocate( list_of_ind_bool(size_of_list) )
         list_of_ind_bool = .FALSE.
@@ -441,7 +442,7 @@ module spin_systems
         !do ind_3 = 1, size_of_list
             !write(*,*) ind_3, list_of_ind(ind_3,1), list_of_ind(ind_3,2), list_of_ind_bool(ind_3)                    
         !end do
-        
+        write(*,*) 'Before the lists allocation for 2nd sweep'
         allocate( list_of_ind_2(ja_val_arr_size, 2) )
     ! allocate( list_of_ind_bool_2(ja_val_arr_size) )
         
@@ -456,6 +457,7 @@ module spin_systems
         end do
         
         deallocate (list_of_ind, list_of_ind_bool)
+        write(*,*) 'Before the csr vectors allocation'
         allocate( ia( Sz_subspace_size+1), ja(ja_val_arr_size), val_arr(ja_val_arr_size) )
         !ia and ja inside list_of_ind_2
         
