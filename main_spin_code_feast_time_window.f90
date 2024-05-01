@@ -376,9 +376,14 @@ module spin_systems
         
         ! 1D list for fast sweep
         size_of_list = Sz_subspace_size*(Sz_subspace_size + 1  ) / 2
+
         write(*,*) 'Before the lists allocation for 1d sweep'
+        write(*,*) 'size_of_list = ', size_of_list
         allocate( list_of_ind(size_of_list, 2) )
+        write(*,*) 'After the list_of_ind allocation for 1d sweep'
         allocate( list_of_ind_bool(size_of_list) )
+        write(*,*) 'After the list_of_ind bool allocation for 1d sweep'
+
         list_of_ind_bool = .FALSE.
         ind_3 = 1
         do ind_Sz_1 = 1        , Sz_subspace_size
@@ -426,7 +431,10 @@ module spin_systems
                 end if
             else
                 write(*,*) 'some error in 1D list'
-                end if
+            end if
+            !if (list_of_ind_bool(ind_3)) then
+            !    open_mp_counter(omp_id+1) = open_mp_counter(omp_id+1) + 1
+            !end if
         end do
         !$OMP END PARALLEL DO 
         
