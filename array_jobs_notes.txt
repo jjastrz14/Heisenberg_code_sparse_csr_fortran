@@ -1,0 +1,9 @@
+działający bash array: bash_job_array.sh
+
+
+
+W podanym wcześniej przykładzie z argumentem SLURM_ARRAY_JOB_ID jest równe wartości 177, co odpowiada też zapisowi 177_1. Wartość zmiennej SLURM_JOB_ID dla kolejnych zadań w tablicy będzie przypisana w formie niezawierającej tablicowego indeksu zadania, czyli
+177_1 → 177
+177_3 → 178
+177_5 → 179
+itd.

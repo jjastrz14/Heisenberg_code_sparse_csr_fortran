@@ -30,4 +30,4 @@ UID                 User                UserCPU             WCKey
 WCKeyID             WorkDir
 
 
-sacct -j 2690718 --format "JobID, WorkDir, Elapsed, AveVMSize, ReqMem, MaxRSS, MaxRSSTask, AveCPU, MaxVMSize, MaxVMSizeNode"
+sacct -j 2690718 --format "JobID, WorkDir, ExitCode, Elapsed, AveVMSize, ReqMem, MaxRSS, MaxRSSTask, AveCPU, MaxVMSize, MaxVMSizeNode"
