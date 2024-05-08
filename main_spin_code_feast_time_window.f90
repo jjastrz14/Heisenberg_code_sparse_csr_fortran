@@ -4,7 +4,7 @@ module spin_systems
     contains
     subroutine binomialCoefficient(n, k, C)
         integer, intent(in)  :: n, k
-        integer, intent(out) :: C
+        integer(8), intent(out) :: C
         !use, intrinsic :: iso_fortran_env, only: real64, int64
         !integer(int64) :: x
         integer :: i
@@ -32,8 +32,8 @@ module spin_systems
         implicit none
         integer, intent(in) :: N_spin
         double precision, intent(in) :: Sz_choice
-        integer, intent(out) :: Sz_subspace_size
-        integer, allocatable, intent(out) :: hash_Sz(:)
+        integer(8), intent(out) :: Sz_subspace_size !beacuse of overflow for N_spin >= 18
+        integer, allocatable, intent(out) :: hash_Sz(:) !try to allocate it as small as possible to save memory
         
         integer :: N_spin_max, i, j, ind_2, Sz_choice_ind
         double precision :: Sz
@@ -118,7 +118,8 @@ module spin_systems
         
         !character(len = 12), intent(in) :: N_spin_char
         integer , dimension(8) :: start_csr, finish_csr, start_diag, finish_diag
-        integer, intent(in) :: N_spin, Sz_subspace_size
+        integer, intent(in) :: N_spin
+        integer (8), intent(in) :: Sz_subspace_size
         double precision, intent(in) :: Sz_choice
         integer, allocatable :: hash_Sz(:), list_of_ind(:,:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
         logical, allocatable :: list_of_ind_bool(:)
@@ -342,14 +343,15 @@ module spin_systems
         implicit none
         !character(len = 12), intent(in) :: N_spin_char
         integer, dimension(8) :: start_csr, finish_csr, start_diag, finish_diag
-        integer, intent(in) :: N_spin, Sz_subspace_size
+        integer, intent(in) :: N_spin
+        integer (8), intent(in) :: Sz_subspace_size
         double precision, intent(in) :: Sz_choice
         integer, allocatable :: hash_Sz(:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:) !list_of_ind(:,:) changed to 2 bytes below
         logical, allocatable :: list_of_ind_bool(:)
         double precision, intent(in) :: J_spin
         integer :: i, j, ind_i, ind_j, N_spin_max, ind_Sz_1, ind_Sz_2, ind_3, size_of_1D_list_for_sweep, &
                     ja_val_arr_size, ind_temp, ind_temp_2, omp_id, threads_max
-        integer(2), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
+        integer(4), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
         integer(8) :: size_of_list !8 byte = 64 bit Signed integer value from -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
         double precision, allocatable :: H_full(:,:), val_arr(:)
         double precision :: norm, H_full_ij, element_value_cutoff, e_min_reg, e_max_reg
@@ -1103,7 +1105,8 @@ program spin_code
     use omp_lib
     implicit none
 
-    integer :: N_spin, N_spin_test, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i,j, k, target_sz_spin, number_of_eigen, Sz_subspace_size, size_of_eigenvalues, m
+    integer :: N_spin, N_spin_test, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i,j, k, target_sz_spin, number_of_eigen, size_of_eigenvalues, m
+    integer (8) :: Sz_subspace_size
     double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down, norm
     double precision :: start, finish, finish_one_spin, start_one_spin, start_csr, finish_csr, start_diag, finish_diag, Sz_choice
     character(len = 12) :: N_spin_char, J_spin_char
