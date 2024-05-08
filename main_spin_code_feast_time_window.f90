@@ -344,11 +344,13 @@ module spin_systems
         integer, dimension(8) :: start_csr, finish_csr, start_diag, finish_diag
         integer, intent(in) :: N_spin, Sz_subspace_size
         double precision, intent(in) :: Sz_choice
-        integer, allocatable :: hash_Sz(:), list_of_ind(:,:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
+        integer, allocatable :: hash_Sz(:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:) !list_of_ind(:,:) changed to 2 bytes below
         logical, allocatable :: list_of_ind_bool(:)
         double precision, intent(in) :: J_spin
         integer :: i, j, ind_i, ind_j, N_spin_max, ind_Sz_1, ind_Sz_2, ind_3, size_of_1D_list_for_sweep, &
-                size_of_list, ja_val_arr_size, ind_temp, ind_temp_2, omp_id, threads_max
+                    ja_val_arr_size, ind_temp, ind_temp_2, omp_id, threads_max
+        integer(2), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
+        integer(8) :: size_of_list !8 byte = 64 bit Signed integer value from -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
         double precision, allocatable :: H_full(:,:), val_arr(:)
         double precision :: norm, H_full_ij, element_value_cutoff, e_min_reg, e_max_reg
         double precision, allocatable, intent(out) :: x(:,:)
@@ -444,7 +446,7 @@ module spin_systems
         end do
         
         ja_val_arr_size = sum(open_mp_counter)
-        !write(*,*) 'necessary ja and val_arr size = ', ja_val_arr_size
+        write(*,*) 'necessary ja and val_arr size = ', ja_val_arr_size
         
         
         !do ind_3 = 1, size_of_list
