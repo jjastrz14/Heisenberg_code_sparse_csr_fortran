@@ -27,6 +27,27 @@ module spin_systems
         C = C_temp
     end subroutine binomialCoefficient
 
+    subroutine index_map(Sz_subspace_size, ind_1D_target, ind_i, ind_j) 
+        implicit none 
+        integer(8), intent(in) :: Sz_subspace_size, ind_1D_target
+        integer(8), intent(out) :: ind_i, ind_j
+        integer(8) :: ind_3
+        integer(8) :: ind_Sz_1, ind_Sz_2, ind_tmp, loop_occ, N
+
+        ind_tmp = ind_1D_target
+        N = Sz_subspace_size
+        loop_occ = 0 
+
+        do while (ind_tmp .GT. 0)
+            ind_tmp = ind_tmp - N
+            N = N - 1
+            loop_occ = loop_occ + 1
+        end do 
+        ind_i = loop_occ
+        ind_j = ind_i + ind_tmp + N 
+
+    end subroutine index_map
+
 
     subroutine Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
         implicit none
@@ -115,6 +136,7 @@ module spin_systems
         use omp_lib
         use mkl_vsl
         implicit none
+        !OLD VERSION OF THE FUNCTION CHECK TIME WINDOW VERSION BELOW
         
         !character(len = 12), intent(in) :: N_spin_char
         integer , dimension(8) :: start_csr, finish_csr, start_diag, finish_diag
@@ -150,7 +172,8 @@ module spin_systems
         write(*,*) 'be carefull about N_spin_max max size - large integer possibility'
         write(*,*) 'test for N_spin_max', N_spin_max
         
-        ! 1D list for fast sweep
+        ! 1D list for fast sweep 
+        ! changed now for a method without allocation
         size_of_list = Sz_subspace_size*(Sz_subspace_size + 1  ) / 2
         allocate( list_of_ind(size_of_list, 2) )
         allocate( list_of_ind_bool(size_of_list) )
@@ -184,6 +207,7 @@ module spin_systems
                         
         do ind_3 = 1, size_of_list
             omp_id = omp_get_thread_num()
+            !call index_map(Sz_subspace_size, ind_3, ind_Sz_1, ind_Sz_2)
             ind_Sz_1 = list_of_ind(ind_3,1)
             ind_Sz_2 = list_of_ind(ind_3,2)
             if (ind_Sz_1 == ind_Sz_2) then
@@ -224,8 +248,9 @@ module spin_systems
         ind_temp = 1
         do ind_3 = 1, size_of_list
             if( list_of_ind_bool(ind_3) ) then
-                list_of_ind_2(ind_temp, 1) = list_of_ind(ind_3, 1)
-                list_of_ind_2(ind_temp, 2) = list_of_ind(ind_3, 2)
+                !call index_map(Sz_subspace_size, ind_3, ind_Sz_1, ind_Sz_2)
+                list_of_ind_2(ind_temp, 1) =  list_of_ind(ind_3, 1)
+                list_of_ind_2(ind_temp, 2) =  list_of_ind(ind_3, 2)
                 !write(*,*) ind_3, list_of_ind_2(ind_temp, 1), list_of_ind_2(ind_temp, 2)
                 ind_temp = ind_temp+1
             end if
@@ -347,11 +372,12 @@ module spin_systems
         integer (8), intent(in) :: Sz_subspace_size
         double precision, intent(in) :: Sz_choice
         integer, allocatable :: hash_Sz(:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:) !list_of_ind(:,:) changed to 2 bytes below
-        logical, allocatable :: list_of_ind_bool(:)
+        logical(1), allocatable :: list_of_ind_bool(:)
         double precision, intent(in) :: J_spin
-        integer :: i, j, ind_i, ind_j, N_spin_max, ind_Sz_1, ind_Sz_2, ind_3, size_of_1D_list_for_sweep, &
-                    ja_val_arr_size, ind_temp, ind_temp_2, omp_id, threads_max
+        integer :: i, j, ind_i, ind_j, ind_ja, ind_temp, ind_temp_2, N_spin_max, size_of_1D_list_for_sweep, &
+                    ja_val_arr_size, omp_id, threads_max
         integer(4), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
+        integer(8) :: ind_Sz_1, ind_Sz_2, ind_3
         integer(8) :: size_of_list !8 byte = 64 bit Signed integer value from -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
         double precision, allocatable :: H_full(:,:), val_arr(:)
         double precision :: norm, H_full_ij, element_value_cutoff, e_min_reg, e_max_reg
@@ -378,25 +404,27 @@ module spin_systems
         write(*,*) 'be carefull about N_spin_max max size - large integer possibility'
         write(*,*) 'test for N_spin_max', N_spin_max
         
-        ! 1D list for fast sweep
+        ! 1D list for fast sweep 
+        ! changed now for a method without allocation
         size_of_list = Sz_subspace_size*(Sz_subspace_size + 1  ) / 2
 
-        write(*,*) 'Before the lists allocation for 1d sweep'
+        !write(*,*) 'Before the lists allocation for 1d sweep'
         write(*,*) 'size_of_list = ', size_of_list
-        allocate( list_of_ind(size_of_list, 2) )
-        write(*,*) 'After the list_of_ind allocation for 1d sweep'
+        !allocate( list_of_ind(size_of_list, 2) )
+        !write(*,*) 'After the list_of_ind allocation for 1d sweep'
+        write(*,*) 'Before the lists bool allocation for 1d sweep'
         allocate( list_of_ind_bool(size_of_list) )
         write(*,*) 'After the list_of_ind bool allocation for 1d sweep'
 
-        list_of_ind_bool = .FALSE.
-        ind_3 = 1
-        do ind_Sz_1 = 1        , Sz_subspace_size
-        do ind_Sz_2 = ind_Sz_1 , Sz_subspace_size
-            list_of_ind(ind_3,1) = ind_Sz_1
-            list_of_ind(ind_3,2) = ind_Sz_2
-            ind_3 = ind_3 + 1
-        end do
-        end do
+        !list_of_ind_bool = .FALSE.
+        !ind_3 = 1
+        !do ind_Sz_1 = 1        , Sz_subspace_size
+        !do ind_Sz_2 = ind_Sz_1 , Sz_subspace_size
+        !    list_of_ind(ind_3,1) = ind_Sz_1
+        !    list_of_ind(ind_3,2) = ind_Sz_2
+        !    ind_3 = ind_3 + 1
+        !end do
+        !end do
         
         ! fast 1D sweep calculating size of ja and val_arr vectors
         write(*,*) 'OpenMP processors check'
@@ -413,13 +441,14 @@ module spin_systems
         element_value_cutoff =  10.0d0**(-8.00d0) ! only larger elements are taken as non-zero
         !ja_val_arr_size = 0
         !$OMP PARALLEL DO PRIVATE(ind_3, omp_id, ind_Sz_1, ind_Sz_2, ind_i, ind_j, H_full_ij) &
-                        SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff) &
+                        SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff, Sz_subspace_size) &
                         default(none)
                         
         do ind_3 = 1, size_of_list
             omp_id = omp_get_thread_num()
-            ind_Sz_1 = list_of_ind(ind_3,1)
-            ind_Sz_2 = list_of_ind(ind_3,2)
+            call index_map(Sz_subspace_size, ind_3, ind_Sz_1, ind_Sz_2)
+            !ind_Sz_1 = list_of_ind(ind_3,1)
+            !ind_Sz_2 = list_of_ind(ind_3,2)
             if (ind_Sz_1 == ind_Sz_2) then
                 !ja_val_arr_size = ja_val_arr_size + 1
                 open_mp_counter(omp_id+1) = open_mp_counter(omp_id+1) + 1
@@ -461,30 +490,31 @@ module spin_systems
         ind_temp = 1
         do ind_3 = 1, size_of_list
             if( list_of_ind_bool(ind_3) ) then
-                list_of_ind_2(ind_temp, 1) = list_of_ind(ind_3, 1)
-                list_of_ind_2(ind_temp, 2) = list_of_ind(ind_3, 2)
+                call index_map(Sz_subspace_size, ind_3, ind_Sz_1, ind_Sz_2)
+                list_of_ind_2(ind_temp, 1) = ind_Sz_1 !list_of_ind(ind_3, 1)
+                list_of_ind_2(ind_temp, 2) = ind_Sz_2 !list_of_ind(ind_3, 2)
                 !write(*,*) ind_3, list_of_ind_2(ind_temp, 1), list_of_ind_2(ind_temp, 2)
                 ind_temp = ind_temp+1
             end if
         end do
         
-        deallocate (list_of_ind, list_of_ind_bool)
+        deallocate (list_of_ind_bool)
         write(*,*) 'Before the csr vectors allocation'
         allocate( ia( Sz_subspace_size+1), ja(ja_val_arr_size), val_arr(ja_val_arr_size) )
         !ia and ja inside list_of_ind_2
         
         !asynchronous filling of val_arr!
-        !$OMP PARALLEL DO PRIVATE(ind_3, ind_i, ind_j, H_full_ij, omp_id) &
+        !$OMP PARALLEL DO PRIVATE(ind_ja, ind_i, ind_j, H_full_ij, omp_id) &
                         SHARED(ja_val_arr_size, hash_Sz, list_of_ind_2, N_spin, J_spin, val_arr, ja) &
                         default(none)
-        do ind_3 = 1, ja_val_arr_size      
+        do ind_ja = 1, ja_val_arr_size      
             omp_id = omp_get_thread_num()
-            ind_i = hash_Sz( list_of_ind_2(ind_3, 1) )
-            ind_j = hash_Sz( list_of_ind_2(ind_3, 2) )
+            ind_i = hash_Sz( list_of_ind_2(ind_ja, 1) )
+            ind_j = hash_Sz( list_of_ind_2(ind_ja, 2) )
             call H_XXX_filling(N_spin, J_spin, ind_i, ind_j, H_full_ij)
             !write(*,*) 'id ', omp_id , 'ind_3', ind_3, ind_i, ind_j, H_full_ij
-            val_arr(ind_3) = H_full_ij
-            ja(ind_3) = list_of_ind_2(ind_3, 2)
+            val_arr(ind_ja) = H_full_ij
+            ja(ind_ja) = list_of_ind_2(ind_ja, 2)
         end do
         !$OMP END PARALLEL DO 
         
@@ -1110,7 +1140,7 @@ program spin_code
     double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down, norm
     double precision :: start, finish, finish_one_spin, start_one_spin, start_csr, finish_csr, start_diag, finish_diag, Sz_choice
     character(len = 12) :: N_spin_char, J_spin_char
-    character(len=53) :: dec2bin, spin_basis, file_name1, file_name2, file_name3
+    character(len=53) :: dec2bin, spin_basis, file_name1, file_name2, file_name3, file_name4
     integer, allocatable :: Sz_basis(:), hash_Sz(:), hash(:), indices_Sz_basis_sorted(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
     double precision, allocatable :: target_sz(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:), e(:), x(:,:)
 
@@ -1167,13 +1197,16 @@ program spin_code
     !file_name1 = 'Test_Eigenvalues_results_feast.dat'
     file_name2 = 'Eigenvalues_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
     file_name3 = 'Cpu_Time_details_' // trim(adjustl(N_spin_char)) // '.dat'
+    file_name4 = 'Eigenvectors_results_' // trim(adjustl(N_spin_char)) // '_feast.dat'
 
     !open (unit=1, file= trim(file_name1), recl=512)
     open (unit=2, file= trim(file_name2), recl=512)
     open (unit=3, file= trim(file_name3), recl=512)
+    open (unit=4, file= trim(file_name4), recl=512)
     !write(1,*), "#Eigenvalue     Spin_z   norm" 
     write(2,*), "#Eigenvalue     Spin_z   norm" 
     write(3,*), "#Time needed for each process"
+    write(4, *) "#Eigenvectors results"
     
     ! generate a target_sz array storing all possible Sz values for N_spin 
     
@@ -1237,9 +1270,12 @@ program spin_code
         norm = 0.0d0
         do j=1, Sz_subspace_size
             norm = norm + x(j,i)*(x(j,i))
+            write(4,*) x(j,i)
         end do
         write(2,*) e(i), ',' , Sz_choice, ',', norm
+        write(4,*) ''
     end do 
+
 
     deallocate(e, x, hash_Sz)
 
@@ -1255,6 +1291,7 @@ program spin_code
     close(1) 
     close(2)  
     close(3)
+    close(4)
     write(*,*) '------- END Heisenberg Program -------'
 
 
