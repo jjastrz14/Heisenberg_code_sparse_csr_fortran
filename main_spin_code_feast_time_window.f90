@@ -560,8 +560,11 @@ module spin_systems
         write(3,*) "Csr filling time = ", t2-t1 ," seconds."
 
         !Calculation of energy bounds for the chain problem according to the previous estimations: 
-        e_min_reg = -0.4465d0 * N_spin + 0.1801d0
-        e_max_reg = -0.49773d0 * N_spin + 2.10035d0
+        !e_min_reg = -0.4465d0 * N_spin + 0.1801d0
+        !e_max_reg = -0.49773d0 * N_spin + 2.10035d0
+
+        e_min_reg = -20
+        e_max_reg = 20
 
         write(*,*) "Calculated lower bound: ", e_min_reg
         write(*,*) "Calculated upper bound: ", e_max_reg
