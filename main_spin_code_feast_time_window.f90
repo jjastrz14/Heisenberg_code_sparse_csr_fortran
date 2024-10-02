@@ -202,8 +202,12 @@ module spin_systems
         element_value_cutoff =  10.0d0**(-8.00d0) ! only larger elements are taken as non-zero
         !ja_val_arr_size = 0
         !$OMP PARALLEL DO PRIVATE(ind_3, omp_id, ind_Sz_1, ind_Sz_2, ind_i, ind_j, H_full_ij) &
-                        SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff) &
-                        default(none)
+        !$OMP          SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff) &
+        !$OMP          default(none)
+
+        ! !$OMP PARALLEL DO PRIVATE(ind_3, omp_id, ind_Sz_1, ind_Sz_2, ind_i, ind_j, H_full_ij) &
+        !! SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff) &
+        !! DEFAULT(none) SCHEDULE(static)
                         
         do ind_3 = 1, size_of_list
             omp_id = omp_get_thread_num()
@@ -262,8 +266,9 @@ module spin_systems
         
         !asynchronous filling of val_arr!
         !$OMP PARALLEL DO PRIVATE(ind_3, ind_i, ind_j, H_full_ij, omp_id) &
-                        SHARED(ja_val_arr_size, hash_Sz, list_of_ind_2, N_spin, J_spin, val_arr, ja) &
-                        default(none)
+        !$OMP          SHARED(ja_val_arr_size, hash_Sz, list_of_ind_2, N_spin, J_spin, val_arr, ja) &
+        !$OMP          default(none)
+
         do ind_3 = 1, ja_val_arr_size      
             omp_id = omp_get_thread_num()
             ind_i = hash_Sz( list_of_ind_2(ind_3, 1) )
@@ -273,6 +278,7 @@ module spin_systems
             val_arr(ind_3) = H_full_ij
             ja(ind_3) = list_of_ind_2(ind_3, 2)
         end do
+
         !$OMP END PARALLEL DO 
         
         ! loop to calculate ia()
@@ -441,8 +447,8 @@ module spin_systems
         element_value_cutoff =  10.0d0**(-8.00d0) ! only larger elements are taken as non-zero
         !ja_val_arr_size = 0
         !$OMP PARALLEL DO PRIVATE(ind_3, omp_id, ind_Sz_1, ind_Sz_2, ind_i, ind_j, H_full_ij) &
-                        SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff, Sz_subspace_size) &
-                        default(none)
+        !$OMP          SHARED(size_of_list, list_of_ind, open_mp_counter, list_of_ind_bool, hash_Sz, N_spin, J_spin, element_value_cutoff, Sz_subspace_size) &
+        !$OMP          default(none)
                         
         do ind_3 = 1, size_of_list
             omp_id = omp_get_thread_num()
@@ -505,8 +511,9 @@ module spin_systems
         
         !asynchronous filling of val_arr!
         !$OMP PARALLEL DO PRIVATE(ind_ja, ind_i, ind_j, H_full_ij, omp_id) &
-                        SHARED(ja_val_arr_size, hash_Sz, list_of_ind_2, N_spin, J_spin, val_arr, ja) &
-                        default(none)
+        !$OMP          SHARED(ja_val_arr_size, hash_Sz, list_of_ind_2, N_spin, J_spin, val_arr, ja) &
+        !$OMP          default(none)
+
         do ind_ja = 1, ja_val_arr_size      
             omp_id = omp_get_thread_num()
             ind_i = hash_Sz( list_of_ind_2(ind_ja, 1) )
