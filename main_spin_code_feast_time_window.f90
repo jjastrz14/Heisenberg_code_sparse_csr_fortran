@@ -1272,8 +1272,8 @@ program spin_code
     write(3,*), "#Heisenberg diagonalisation: N = " , N_spin_char
 
     call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
-    call H_XXX_subspace_fill_and_diag_fast_time_window(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
-
+    !call H_XXX_subspace_fill_and_diag_fast_time_window(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
+    call H_XXX_subspace_fill_and_diag_fast(N_spin, J_spin, Sz_choice, Sz_subspace_size, hash_Sz, e, x, m)
     write(*,*) ' dfeast_scsrev eigenvalues found= ', m
     write(*,*) ' dfeast_scsrev eigenvec norm:'
     do i=1,m
