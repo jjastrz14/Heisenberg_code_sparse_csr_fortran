@@ -286,12 +286,16 @@ module spin_systems
         ind_temp_2 = 1
         do ind_3 = 1, Sz_subspace_size                
             ia(ind_3) = ind_temp
-            DO WHILE ( list_of_ind_2(ind_temp_2, 1) == ind_3 ) 
+            write(*,*) 'ind_3, ia(ind_3): ', ind_3, ia(ind_3)
+            DO WHILE (ind_temp_2 <= size(list_of_ind_2, 1) .and. list_of_ind_2(ind_temp_2, 1) == ind_3)
                 ind_temp = ind_temp+1
                 ind_temp_2 = ind_temp_2 + 1
             END DO 
         end do
         ia(Sz_subspace_size +1) = ind_temp
+        write(*,*) 'ind_3, ia(ind_3): ', ind_temp, ia(Sz_subspace_size +1)
+
+
         
         !write(*,*) 'ia: '
         !do ind_3 = 1, Sz_subspace_size+1
