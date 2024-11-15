@@ -1,3 +1,14 @@
 {
-    "fortran.fortls.disabled": true
+    "fortran.linter.excludePatterns": [
+        "**/mkl_*.f90",
+        "**/mkl_*.mod",
+        "**/mkl_vsl.f90",
+        "**/mkl_spblas.f90"
+    ],
+    "fortran.linter.ignoreExternalModules": true,
+    "fortran.fortls.disabled": true,
+    "fortran.linter.modOutput": "./build",
+    "fortran.linter.includePaths": [],
+    "fortran.linter.extraArgs": [],
+    "fortran.linter.enabled": false
 }

@@ -926,8 +926,8 @@ module spin_systems
         uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
         emin = -20.0d0 ! The lower ... &
         emax =  20.0d0  !  and upper bounds of the interval to be searched for eigenvalues
-        m0 = 5 !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0²n. 
-        !Set m0 ³ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
+        m0 = 5 !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0ï¿½n. 
+        !Set m0 ï¿½ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
         n = 5
         allocate( x(n,m0), e(m0), res(m0) )
@@ -1058,8 +1058,8 @@ module spin_systems
         uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
         emin = -20.0d0 ! The lower ... &
         emax =  20.0d0  !  and upper bounds of the interval to be searched for eigenvalues
-        m0 = 5 !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0²n. 
-        !Set m0 ³ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
+        m0 = 5 !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0ï¿½n. 
+        !Set m0 ï¿½ m where m is the total number of eigenvalues located in the interval [emin, emax]. 
         !If the initial guess is wrong, Extended Eigensolver routines return info=3.
         n = 5
         allocate( x(n,m0), e(m0), res(m0) )
@@ -1121,7 +1121,7 @@ program spin_code
     !od teraz wersja kodu Ma?ka 
     ! entropie liczymy w pythonie 
 
-    !11.03/2024 - powr—t do kodu :)
+    !11.03/2024 - powrï¿½t do kodu :)
 
     If(command_argument_count().NE.2) Then
         write(*,*)'Error, Only N (integer) and J (double precision) is required, program stopped two many or parameter is missing'
