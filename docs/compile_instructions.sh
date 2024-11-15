@@ -13,3 +13,10 @@ ifort math_func_module.f90 spin_systems_module.f90 tests_module.f90 main_spin_co
 
 
 source /opt/intel/oneapi/setvars.sh - for intel on macOS
+
+#godot:
+
+ifx -o heisenberg -module build/ -L$FEASTROOT -lfeast -qmkl -qopenmp -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -lpthread -xHost -O3 -static-intel -heap-arrays -integer-size 64 -check bounds src/main_spin_code_feast_time_window.f90
+
+#godot shrinked version: 
+ifx -o heisenberg src/main_spin_code_feast_time_window.f90  -module build/ -L$FEASTROOT -lfeast -qmkl -qopenmp
