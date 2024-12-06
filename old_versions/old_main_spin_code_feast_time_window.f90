@@ -499,7 +499,7 @@ module spin_systems
         !end do
         write(*,*) 'Before the lists allocation for 2nd sweep'
         allocate( list_of_ind_2(ja_val_arr_size, 2) )
-    ! allocate( list_of_ind_bool_2(ja_val_arr_size) )
+        ! allocate( list_of_ind_bool_2(ja_val_arr_size) )
         
         ind_temp = 1
         do ind_3 = 1, size_of_list

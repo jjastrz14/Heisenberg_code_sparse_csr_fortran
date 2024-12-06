@@ -20,3 +20,12 @@ ifx -o heisenberg -module build/ -L$FEASTROOT -lfeast -qmkl -qopenmp -lmkl_intel
 
 #godot shrinked version: 
 ifx -o heisenberg src/main_spin_code_feast_time_window.f90  -module build/ -L$FEASTROOT -lfeast -qmkl -qopenmp
+
+#godot multi modules version: 
+
+ifx -o heisenberg \
+    -module build/ \
+    src/utils.f90 \
+    src/tests_module.f90 \
+    src/main_spin.f90 \
+    -L$FEASTROOT -lfeast -qmkl -qopenmp
