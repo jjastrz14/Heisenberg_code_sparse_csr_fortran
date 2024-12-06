@@ -192,7 +192,8 @@ module heisenberg
         use timing_utilities
         implicit none
 
-        integer (8), intent(in) :: N_spin, Sz_subspace_size
+        integer, intent(in) :: N_spin
+        integer (8), intent(in) :: Sz_subspace_size
         double precision, intent(in) :: J_spin
         integer, allocatable :: hash_Sz(:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
         !integer(2), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
@@ -415,8 +416,8 @@ module heisenberg
         emin = -0.4465d0 * N_spin + 0.1801d0
         emax = -0.49773d0 * N_spin + 2.10035d0
 
-        write(*,*) "Calculated lower bound: ", e_min_reg
-        write(*,*) "Calculated upper bound: ", e_max_reg
+        write(*,*) "Calculated lower bound: ", emin
+        write(*,*) "Calculated upper bound: ", emax
 
         m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
         !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
@@ -463,7 +464,7 @@ module heisenberg
         deallocate(val_arr, ia, ja, x, e, res)
         close(io_unit)
 
-        call timer%stop()
+        call calc_timer%stop()
         print *, "----------------------------------------"
         print *, "END FEAST diagonalisation:"
         call calc_timer%print_elapsed_time(time_unit%seconds, "seconds")
