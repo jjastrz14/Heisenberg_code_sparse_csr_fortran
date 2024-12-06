@@ -220,7 +220,7 @@ module heisenberg
         character(len = 12) :: N_spin_char
         character(len=53) :: file_name
         integer :: io_unit   
-        type(timer) :: timer
+        type(timer) :: calc_timer
 
         write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
         open(newunit=io_unit, file=trim(file_name), access='stream')
@@ -229,7 +229,7 @@ module heisenberg
         print *, "START CSR filling"
         print *, "----------------------------------------"
         
-        call timer%start()
+        call calc_timer%start()
         write(*,*) 'Memory study 0: hash_Sz: ', kind(hash_Sz(1)) * size(hash_Sz) , 'bytes', kind(hash_Sz(1)) * size(hash_Sz)/1024.0/1024.0, 'MB'
 
         ! N=4 spin-1/2 Heisenberg XXX (Jx=Jy=Jz=J) model, J=1
@@ -371,18 +371,18 @@ module heisenberg
         !    write(*,*) ind_3, ja(ind_3), val_arr(ind_3)
         !end do
 
-        call timer%stop()
+        call calc_timer%stop()
         print *, "----------------------------------------"
         print *, "END CSR filling:"
-        call timer%print_elapsed_time(time_unit%seconds, "seconds")
-        call timer%print_elapsed_time(time_unit%minutes, "minutes")
-        call timer%print_elapsed_time(time_unit%hours, "hours")
+        call calc_timer%print_elapsed_time(time_unit%seconds, "seconds")
+        call calc_timer%print_elapsed_time(time_unit%minutes, "minutes")
+        call calc_timer%print_elapsed_time(time_unit%hours, "hours")
         print *, "----------------------------------------"
 
-        call timer%reset()
+        call calc_timer%reset()
 
 
-        call timer%start()
+        call calc_timer%start()
         print *, "----------------------------------------"
         print *, "START FEAST diagonalisation"
         print *, "----------------------------------------"
@@ -466,9 +466,9 @@ module heisenberg
         call timer%stop()
         print *, "----------------------------------------"
         print *, "END FEAST diagonalisation:"
-        call timer%print_elapsed_time(time_unit%seconds, "seconds")
-        call timer%print_elapsed_time(time_unit%minutes, "minutes")
-        call timer%print_elapsed_time(time_unit%hours, "hours")
+        call calc_timer%print_elapsed_time(time_unit%seconds, "seconds")
+        call calc_timer%print_elapsed_time(time_unit%minutes, "minutes")
+        call calc_timer%print_elapsed_time(time_unit%hours, "hours")
         print *, "----------------------------------------"
         
         end subroutine Hamiltonian_fill_diag_open_mp
