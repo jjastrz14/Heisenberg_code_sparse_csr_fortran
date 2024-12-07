@@ -219,12 +219,11 @@ module heisenberg
         integer(8) :: start_count, end_count, count_rate
         double precision :: elapsed_time 
         character(len = 12) :: N_spin_char
-        character(len=53) :: file_name
-        integer :: io_unit   
+        character(len=53) :: file_name   
         type(timer) :: calc_timer
 
         write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
-        open(newunit=io_unit, file=trim(file_name), access='stream')
+        open(10, file=trim(file_name), access='stream')
 
         print *, "----------------------------------------"
         print *, "START CSR filling"
@@ -449,7 +448,7 @@ module heisenberg
             do j=1, n
                 norm = norm + x(j,i)*(x(j,i))
             end do
-            write(io_unit,*) i, e(i), norm
+            write(10,*) i, e(i), norm
         end do
         
         ! console print of eigenvals for debug
@@ -462,7 +461,7 @@ module heisenberg
         end do
 
         deallocate(val_arr, ia, ja, x, e, res)
-        close(io_unit)
+        close(10)
 
         call calc_timer%stop()
         print *, "----------------------------------------"
@@ -507,7 +506,7 @@ program spin_code
     ! call mmm_csr_test()
     call omp_mkl_small_test()
     ! call test_permutation_H_for_4_sites()
-    !call sparse_zfeast_test()
+    ! call sparse_zfeast_test()
     call sparse_dfeast_test()
 
     write(*,*) '------- END test modules -------'
@@ -522,12 +521,17 @@ program spin_code
 
     N_spin_max = 2**N_spin 
 
-    Sz_choice = 0.0d0 ! integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
-
+    !Sz_choice = 0.0d0 !integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
+    !Choose always biggest subspace of the Hamiltonian
+    if (N_spin%2 == 0.0d0) then
+        Sz_choice = 0.0d0 
+    else 
+        Sz_choice = 0.5d0  
+    endif 
+    
     call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
 
     call Hamiltonian_fill_diag_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz)
-
 
     write(*,*) " "
     write(*,*) "Program executed with success"
