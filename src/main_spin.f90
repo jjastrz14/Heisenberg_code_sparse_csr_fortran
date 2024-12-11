@@ -221,7 +221,7 @@ module heisenberg
         type(timer) :: calc_timer
 
         write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
-        open(10, file=trim(file_name), access='stream')
+        open(10, file=trim(file_name), recl = 512)
 
         print *, "----------------------------------------"
         print *, "START CSR filling"
@@ -411,7 +411,8 @@ module heisenberg
         n = Sz_subspace_size !
         !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
         emin = -0.4465d0 * N_spin + 0.1801d0
-        emax = -0.49773d0 * N_spin + 2.10035d0
+        !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
+        emax = -0.49773d0 * N_spin + 2.10030d0
 
         write(*,*) "Calculated lower bound: ", emin
         write(*,*) "Calculated upper bound: ", emax
@@ -446,7 +447,7 @@ module heisenberg
             do j=1, n
                 norm = norm + x(j,i)*(x(j,i))
             end do
-            write(10,*) i, e(i), norm
+            write(*,*) i, e(i), norm
         end do
 
         do i=1,m
@@ -454,7 +455,7 @@ module heisenberg
             do j=1, n
                 norm = norm + x(j,i)*(x(j,i))
             end do
-            write(io_unit,*) i, e(i), norm
+            write(10,*) i, e(i), norm
         end do
 
         deallocate(val_arr, ia, ja, x, e, res)
@@ -517,14 +518,10 @@ program spin_code
 
     N_spin_max = 2**N_spin 
     
-    ! TO DO: 
-    ! adjust the choose of the sz choice based one the N_spin automatically! 
-    ! write the output to the log file 
-    ! create result file
     !Sz_choice = 0.0d0 !integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
 
     !Choose always biggest subspace of the Hamiltonian
-    if (N_spin%2 == 0.0d0) then
+    if (mod(N_spin,2) == 0.0d0) then !0 subspace for even 0.5 supspace for odd
         Sz_choice = 0.0d0 
     else 
         Sz_choice = 0.5d0  
