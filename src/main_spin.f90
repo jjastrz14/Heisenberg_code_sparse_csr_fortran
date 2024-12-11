@@ -40,6 +40,7 @@ module heisenberg
         !bool_T/F=btest(number, bit_number)
         ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2
         
+        !measure time hash Sz
         ind_2 = 1
         do i = 0 , N_spin_max-1
             !basis(i) = i !here we want Sz from this i
@@ -476,6 +477,7 @@ end module heisenberg
 program spin_code
     use heisenberg
     use tests_module
+    use timing_utilities
     implicit none
 
     integer :: N_spin, N_spin_max 
