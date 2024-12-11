@@ -4,6 +4,7 @@ module heisenberg
 
     subroutine Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
         use math_functions
+        use timing_utilities
         implicit none
         integer, intent(in) :: N_spin
         double precision, intent(in) :: Sz_choice
@@ -13,6 +14,7 @@ module heisenberg
         integer :: N_spin_max, i, j, ind_2, Sz_choice_ind
         double precision :: Sz
         logical :: bool
+        type(timer) :: calc_timer
 
         N_spin_max = 2**N_spin
 
@@ -39,7 +41,9 @@ module heisenberg
         ! we can use e.g. btest function, which returns info if given bit is 0 (false) or 1 (true)
         !bool_T/F=btest(number, bit_number)
         ! 0 == false => Sz=Sz+1/2, 1= true> = Sz=Sz-1/2
-        
+
+        call calc_timer%start()
+
         !measure time hash Sz
         ind_2 = 1
         do i = 0 , N_spin_max-1
@@ -71,6 +75,12 @@ module heisenberg
 
         write(*,*) 'internal hash_Sz size check', ind_2-1, 'vs', Sz_subspace_size
         write(*,*) 'remember that this vector can in principle be evaluated dynamically'
+
+        call calc_timer%stop()
+        write(*,*) 'Time of Sz subspace choice'
+        call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+        call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+        call calc_timer%print_elapsed(time_unit%hours, "hours")
 
         !open (unit=40, file="hash_Sz_basis.dat", recl=512)
         !write(*,*) 'Summary of hash_Sz basis: '
@@ -461,7 +471,7 @@ module heisenberg
 
         deallocate(val_arr, ia, ja, x, e, res)
         close(10)
-
+     
         call calc_timer%stop()
         print *, "----------------------------------------"
         print *, "END FEAST diagonalisation:"
@@ -487,7 +497,9 @@ program spin_code
     character(len = 12) :: N_spin_char, J_spin_char
     integer, allocatable :: Sz_basis(:), hash_Sz(:), hash(:), indices_Sz_basis_sorted(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
     double precision, allocatable :: target_sz(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
+    type(timer) :: calc_timer
 
+    call calc_timer%start()
     If(command_argument_count().NE.2) Then
         write(*,*)'Error, Only N (integer) and J (double precision) is required, program stopped'
         stop 
@@ -513,7 +525,6 @@ program spin_code
     !N_spin = 4
     !J_spin = 1 
 
-    call cpu_time(start)
     write(*,*) '------- START Heisenberg Program -------'
     write(*,*) 'Calculation of Heisenberg chain for N =', N_spin , 'and J = ', J_spin 
     write(*,*) ' '
@@ -535,8 +546,10 @@ program spin_code
 
     write(*,*) " "
     write(*,*) "Program executed with success"
-    call cpu_time(finish)
-    print '("Time = ",f," seconds.")',finish-start
+    call calc_timer%stop()
+    call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+    call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+    call calc_timer%print_elapsed(time_unit%hours, "hours")
     write(*,*) '------- END Heisenberg Program -------'
 
     

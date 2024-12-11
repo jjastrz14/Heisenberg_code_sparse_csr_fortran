@@ -355,7 +355,7 @@ module timing_utilities
             endif
             
             ! Print with consistent formatting
-            print '(A,": ",F15.6," ",A)', prefix, elapsed_time, time_unit_str
+            write(*,'(A,": ",F15.6," ",A)') prefix, elapsed_time, time_unit_str
             
         end subroutine print_elapsed_time
 end module timing_utilities
