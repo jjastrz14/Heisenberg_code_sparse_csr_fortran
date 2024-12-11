@@ -1,10 +1,9 @@
-include "mkl_vsl.f90" !necessary for intel mkl random numbers
-
 module heisenberg 
     implicit none
     contains
 
     subroutine Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
+        use math_functions
         implicit none
         integer, intent(in) :: N_spin
         double precision, intent(in) :: Sz_choice
@@ -187,7 +186,6 @@ module heisenberg
     subroutine Hamiltonian_fill_diag_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz)
         use omp_lib
         use mkl_vsl
-        use omp_mkl_test
         use math_functions
         use timing_utilities
         implicit none
@@ -374,9 +372,9 @@ module heisenberg
         call calc_timer%stop()
         print *, "----------------------------------------"
         print *, "END CSR filling:"
-        call calc_timer%print_elapsed_time(time_unit%seconds, "seconds")
-        call calc_timer%print_elapsed_time(time_unit%minutes, "minutes")
-        call calc_timer%print_elapsed_time(time_unit%hours, "hours")
+        call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+        call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+        call calc_timer%print_elapsed(time_unit%hours, "hours")
         print *, "----------------------------------------"
 
         call calc_timer%reset()
@@ -441,15 +439,6 @@ module heisenberg
         end if
 
         write(*,*) ' dfeast_scsrev eigenvalues found= ', m
-
-        !write(*,*) ' dfeast_scsrev eigenvec norm:'
-        do i=1,m
-            norm = 0.0
-            do j=1, n
-                norm = norm + x(j,i)*(x(j,i))
-            end do
-            write(10,*) i, e(i), norm
-        end do
         
         ! console print of eigenvals for debug
         do i=1,m
@@ -457,7 +446,15 @@ module heisenberg
             do j=1, n
                 norm = norm + x(j,i)*(x(j,i))
             end do
-            write(*,*) i, e(i), norm
+            write(10,*) i, e(i), norm
+        end do
+
+        do i=1,m
+            norm = 0.0
+            do j=1, n
+                norm = norm + x(j,i)*(x(j,i))
+            end do
+            write(io_unit,*) i, e(i), norm
         end do
 
         deallocate(val_arr, ia, ja, x, e, res)
@@ -466,9 +463,9 @@ module heisenberg
         call calc_timer%stop()
         print *, "----------------------------------------"
         print *, "END FEAST diagonalisation:"
-        call calc_timer%print_elapsed_time(time_unit%seconds, "seconds")
-        call calc_timer%print_elapsed_time(time_unit%minutes, "minutes")
-        call calc_timer%print_elapsed_time(time_unit%hours, "hours")
+        call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+        call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+        call calc_timer%print_elapsed(time_unit%hours, "hours")
         print *, "----------------------------------------"
         
         end subroutine Hamiltonian_fill_diag_open_mp
@@ -478,11 +475,10 @@ end module heisenberg
 program spin_code
     use heisenberg
     use tests_module
-    use math_functions
-    use timing_utilities
     implicit none
 
-    integer :: N_spin, N_spin_max, no_of_nonzero, size_of_sub_A, size_of_sub_B, i, k, target_sz_spin, number_of_eigen, Sz_subspace_size
+    integer :: N_spin, N_spin_max 
+    integer (8) :: Sz_subspace_size
     double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down
     double precision :: start, finish, finish_one_spin, start_one_spin, Sz_choice
     character(len = 12) :: N_spin_char, J_spin_char
@@ -520,7 +516,10 @@ program spin_code
     write(*,*) ' '
 
     N_spin_max = 2**N_spin 
-
+    ! TO DO: 
+    ! adjust the choose of the sz choice based one the N_spin automatically! 
+    ! write the output to the log file 
+    ! create result file
     !Sz_choice = 0.0d0 !integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
     !Choose always biggest subspace of the Hamiltonian
     if (N_spin%2 == 0.0d0) then
