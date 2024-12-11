@@ -516,11 +516,13 @@ program spin_code
     write(*,*) ' '
 
     N_spin_max = 2**N_spin 
+    
     ! TO DO: 
     ! adjust the choose of the sz choice based one the N_spin automatically! 
     ! write the output to the log file 
     ! create result file
     !Sz_choice = 0.0d0 !integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
+
     !Choose always biggest subspace of the Hamiltonian
     if (N_spin%2 == 0.0d0) then
         Sz_choice = 0.0d0 
