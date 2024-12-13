@@ -559,23 +559,23 @@ module heisenberg
             type(timer) :: calc_timer
 
     
-            write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
-            open(10, file=trim(file_name), recl = 512)
+            !write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
+            !open(10, file=trim(file_name), recl = 512)
     
     
-            call calc_timer%start()
+            !call calc_timer%start()
             print *, "----------------------------------------"
             print *, "START FEAST diagonalisation"
             print *, "----------------------------------------"
 
-            call MPI_INIT(code)
+            call MPI_COMM_SIZE(MPI_COMM_WORLD, nL3, code) !nL3 is the number of nodes!
     
             !int 64 has 64 bits
             !double precision has 64 bit
     
             !n=n     ! Sets the size of the problem
             !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
-
+        
             call pfeastinit(fpm, MPI_COMM_WORLD, nL3)  ! function specifying default parameters fpm of FEAST algorithm
             fpm(1) = 1
             fpm(2) = 12 !can be more, can be less
@@ -601,36 +601,38 @@ module heisenberg
             m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
             !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
             !If the initial guess is wrong, Extended Eigensolver routines return info=3.
-            
-            allocate( x(n,m0), e(m0), res(m0) )
-            write(*,*) 'Memory study 4: n,m0: ', n, m0
-            write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
-            write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
-            write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
 
             !MPI comunicator scheduling: 
 
             call MPI_COMM_RANK(fpm(49), rank3, code)
-            nL3 = 2 !number of nodes used
             
             rows_per_proc = Sz_subspace_size / nL3 !size of the problem divided by number of processors
-            ! Calculate local row range for this process
-            start_row = rank3 * rows_per_proc + 1
-            
-            ! Handle the case where n is not perfectly divisible by nL3
+
             if (rank3 == nL3 - 1) then
-                end_row = Sz_subspace_size ! Last process takes remaining rows
-            else
-                end_row = start_row + rows_per_proc - 1
+                rows_per_proc = Sz_subspace_size - (nL3 - 1) * rows_per_proc
             endif
+
+            ! Calculate local row range for this process
+            start_row = rank3 * (Sz_subspace_size / nL3) + 1
+            end_row = start_row + rows_per_proc - 1
+
+            ! Make sure we're not going past array bounds
+            if (end_row > Sz_subspace_size) end_row = Sz_subspace_size
             
             ! Calculate number of non-zeros in local portion
             local_nnz = ia(end_row + 1) - ia(start_row)
-            
-            ! Allocate local arrays
-            allocate(ia_local(end_row - start_row + 1))  ! +1 because we need one more entry csr
-            allocate(ja_local(local_nnz))
-            allocate(val_arr_local(local_nnz))
+
+            ! Debug output to verify distribution
+            write(*,*) 'Process ', rank3, ' handling rows ', start_row, ' to ', end_row
+            write(*,*) 'Local non-zeros: ', local_nnz
+
+            ! Allocate local arrays with verified sizes
+            allocate(ia_local(rows_per_proc + 1), stat=info)  ! +1 for CSR format
+            if (info /= 0) write(*,*) 'Error allocating ia_local on process ', rank3
+            allocate(ja_local(local_nnz), stat=info)
+            if (info /= 0) write(*,*) 'Error allocating ja_local on process ', rank3
+            allocate(val_arr_local(local_nnz), stat=info)
+            if (info /= 0) write(*,*) 'Error allocating val_arr_local on process ', rank3
             
             ! Fill local arrays
             ! Adjust ia indices to start from 1 in local numbering
@@ -642,7 +644,20 @@ module heisenberg
             ja_local(1:local_nnz) = ja(ia(start_row):ja(end_row+1)-1)
             val_arr_local(1:local_nnz) = val_arr(ia(start_row):ia(end_row+1)-1)
         
-            
+            call MPI_BARRIER(MPI_COMM_WORLD, code)
+
+            allocate( x(rows_per_proc,m0), e(m0), res(m0) )
+            write(*,*) 'Memory study 4: n,m0: ', n, m0
+            write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
+            write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
+            write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
+
+            ! Debug output before FEAST
+            write(*,*) 'Process ', rank3, ' ready for FEAST with:'
+            write(*,*) '  Local rows: ', rows_per_proc
+            write(*,*) '  Local non-zeros: ', local_nnz
+            write(*,*) '  Memory allocated for x:', rows_per_proc * m0 * 8, ' bytes'
+
             write(*,*) 'Before dfeast_scsrev... '
             call pdfeast_scsrev(uplo, n, val_arr_local, ia_local, ja_local, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
             write(*,*) 'eps_out= ', epsout
@@ -665,13 +680,13 @@ module heisenberg
                 write(*,*) i, e(i), norm
             end do
     
-            do i=1,m
-                norm = 0.0
-                do j=1, n
-                    norm = norm + x(j,i)*(x(j,i))
-                end do
-                write(10,*) i, e(i), norm
-            end do
+            !do i=1,m
+            !    norm = 0.0
+            !    do j=1, n
+            !        norm = norm + x(j,i)*(x(j,i))
+            !    end do
+            !    write(10,*) i, e(i), norm
+            !end do
 
             deallocate(ia_local, ja_local, val_arr_local)
             
@@ -679,19 +694,17 @@ module heisenberg
                 deallocate(val_arr, ia, ja)
             endif    
 
-            call MPI_FINALIZE(code) !is this needed?
-
             deallocate(x, e, res)
             close(10)
                     
-            call calc_timer%stop()
+            !call calc_timer%stop()
             print *, "----------------------------------------"
             print *, "END FEAST diagonalisation:"
-            call calc_timer%print_elapsed(time_unit%seconds, "seconds")
-            call calc_timer%print_elapsed(time_unit%minutes, "minutes")
-            call calc_timer%print_elapsed(time_unit%hours, "hours")
+            !call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+            !call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+            !call calc_timer%print_elapsed(time_unit%hours, "hours")
             print *, "----------------------------------------"
-            call calc_timer%reset()
+            !call calc_timer%reset()
             
         end subroutine Hamiltonian_diag_pfeast_multi_node
 

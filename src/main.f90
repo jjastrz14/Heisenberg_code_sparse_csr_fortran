@@ -57,8 +57,7 @@ program spin_code
 
     call Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
 
-    !call Hamiltonian_diag_feast_4(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
-    call Hamiltonian_diag_pfeast_multi_node(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+    call Hamiltonian_diag_feast_4(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
 
     write(*,*) " "
     write(*,*) "Program executed with success"
