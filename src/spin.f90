@@ -194,7 +194,7 @@ module heisenberg
     end subroutine H_XXX_filling
 
 
-    subroutine Hamiltonian_fill_diag_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz)
+    subroutine Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
         use omp_lib
         use mkl_vsl
         use math_functions
@@ -204,14 +204,16 @@ module heisenberg
         integer, intent(in) :: N_spin
         integer (8), intent(in) :: Sz_subspace_size
         double precision, intent(in) :: J_spin
-        integer, allocatable :: hash_Sz(:), list_of_ind_2(:,:), ia(:), ja(:), open_mp_counter(:)
+        integer, allocatable, intent(out) :: ia(:), ja(:)
+        double precision, allocatable, intent(out) :: val_arr(:)
+
+        integer, allocatable :: hash_Sz(:), list_of_ind_2(:,:), open_mp_counter(:)
         !integer(2), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
         logical(1), allocatable :: list_of_ind_bool(:)
         integer :: i, j, ind_i, ind_j, N_spin_max,  size_of_1D_list_for_sweep, &
             ja_val_arr_size, ind_temp, ind_temp_2, omp_id, threads_max !ind_Sz_1, ind_Sz_2
         integer(8), allocatable :: list_of_ind(:,:) ! Signed integer value from -32,768 to 32,767
         integer(8) :: ind_3, size_of_list, ind_Sz_1, ind_Sz_2 !8 byte = 64 bit Signed integer value from -9,223,372,036,854,775,808 to 9,223,372,036,854,775,807
-        double precision, allocatable :: val_arr(:)
         double precision :: H_full_ij, element_value_cutoff
         double precision :: norm 
         double precision, allocatable :: x(:,:)
@@ -231,8 +233,6 @@ module heisenberg
         character(len=53) :: file_name   
         type(timer) :: calc_timer
 
-        write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
-        open(10, file=trim(file_name), recl = 512)
 
         print *, "----------------------------------------"
         print *, "START CSR filling"
@@ -388,170 +388,311 @@ module heisenberg
         call calc_timer%print_elapsed(time_unit%hours, "hours")
         print *, "----------------------------------------"
 
-        call calc_timer%reset()
-
-
-        call calc_timer%start()
-        print *, "----------------------------------------"
-        print *, "START FEAST diagonalisation"
-        print *, "----------------------------------------"
-
         !FEAST diagonalization
         write(*,*) 'val_arr size: ', ja_val_arr_size
         write(*,*) 'Sz_subspace_size: ', Sz_subspace_size
         write(*,*) 'size_of_list', size_of_list
 
-        !int 64 has 64 bits
-        !double precision has 64 bit
+        call calc_timer%reset()
 
-        !n=n     ! Sets the size of the problem
-        !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
-        call feastinit (fpm)  ! function specifying default parameters fpm of FEAST algorithm
-        fpm(1) = 1
-        fpm(2) = 12 !can be more, can be less
-        fpm(3) = 12 !eps 10^-fpm(3)
-        fpm(4) = 20 ! max number of feast loops
-        fpm(5) = 0 !initial subspace
-        fpm(6) = 0! stopping criterion
-        fpm(7) = 5 !Error trace sigle prec stop crit
-        fpm(14) = 0 ! standard use of feast
-        fpm(27) = 1 !check input matrices
-        fpm(28) = 1 !check if B is positive definite?
         
-        uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
-        n = Sz_subspace_size !
-        !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
-        emin = -0.4465d0 * N_spin + 0.1801d0
-        !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
-        emax = -0.49773d0 * N_spin + 2.10030d0
+        end subroutine Hamiltonian_fill_open_mp
 
-        write(*,*) "Calculated lower bound: ", emin
-        write(*,*) "Calculated upper bound: ", emax
 
-        m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
-        !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
-        !If the initial guess is wrong, Extended Eigensolver routines return info=3.
-        
-        allocate( x(n,m0), e(m0), res(m0) )
-        write(*,*) 'Memory study 4: n,m0: ', n, m0
-        write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
-        write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
-        write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
-        
-        
-        write(*,*) 'Before dfeast_scsrev... '
-        call dfeast_scsrev(uplo, n, val_arr, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
-        write(*,*) 'eps_out= ', epsout
-        write(*,*) 'loop= ', loop
-        write(*,*) ' dfeast_scsrev info=', info
-        write(*,*) 'After  dfeast_scsrev... '
+        subroutine Hamiltonian_diag_feast_4(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+            use omp_lib
+            use mkl_vsl
+            use math_functions
+            use timing_utilities
+            implicit none
+    
+            integer, intent(in) :: N_spin
+            integer (8), intent(in) :: Sz_subspace_size
+            double precision, intent(in) :: J_spin
+            integer, allocatable, intent(inout) :: ia(:), ja(:)
+            double precision, allocatable, intent(inout) :: val_arr(:)
 
-        if (info /= 0) then
-            write(*,*) 'problem with  dfeast_scsrev, info=', info
-        end if
-
-        write(*,*) ' dfeast_scsrev eigenvalues found= ', m
-        
-        ! console print of eigenvals for debug
-        do i=1,m
-            norm = 0.0
-            do j=1, n
-                norm = norm + x(j,i)*(x(j,i))
+            integer :: i, j, ind_i, ind_j, N_spin_max
+            double precision :: H_full_ij, element_value_cutoff
+            double precision :: norm 
+            double precision, allocatable :: x(:,:)
+            integer :: fpm(128)
+            double precision :: emin, emax
+            integer :: m0
+            double precision :: epsout
+            integer :: loop
+            double precision, allocatable :: e(:)
+            integer :: m
+            double precision, allocatable :: res(:)
+            CHARACTER*1 :: jobz, range, uplo
+            integer :: il, iu, ldz, liwork, lwork, info, m_eig, n
+            character(len=53) :: file_name   
+            type(timer) :: calc_timer
+    
+            write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
+            open(10, file=trim(file_name), recl = 512)
+    
+    
+            call calc_timer%start()
+            print *, "----------------------------------------"
+            print *, "START FEAST diagonalisation"
+            print *, "----------------------------------------"
+    
+            !int 64 has 64 bits
+            !double precision has 64 bit
+    
+            !n=n     ! Sets the size of the problem
+            !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+            call feastinit (fpm)  ! function specifying default parameters fpm of FEAST algorithm
+            fpm(1) = 1
+            fpm(2) = 12 !can be more, can be less
+            fpm(3) = 12 !eps 10^-fpm(3)
+            fpm(4) = 20 ! max number of feast loops
+            fpm(5) = 0 !initial subspace
+            fpm(6) = 0! stopping criterion
+            fpm(7) = 5 !Error trace sigle prec stop crit
+            fpm(14) = 0 ! standard use of feast
+            fpm(27) = 1 !check input matrices
+            fpm(28) = 1 !check if B is positive definite?
+            
+            uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
+            n = Sz_subspace_size !
+            !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
+            emin = -0.4465d0 * N_spin + 0.1801d0
+            !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
+            emax = -0.49773d0 * N_spin + 2.10030d0
+    
+            write(*,*) "Calculated lower bound: ", emin
+            write(*,*) "Calculated upper bound: ", emax
+    
+            m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
+            !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
+            !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+            
+            allocate( x(n,m0), e(m0), res(m0) )
+            write(*,*) 'Memory study 4: n,m0: ', n, m0
+            write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
+            write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
+            write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
+            
+            
+            write(*,*) 'Before dfeast_scsrev... '
+            call dfeast_scsrev(uplo, n, val_arr, ia, ja, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
+            write(*,*) 'eps_out= ', epsout
+            write(*,*) 'loop= ', loop
+            write(*,*) ' dfeast_scsrev info=', info
+            write(*,*) 'After  dfeast_scsrev... '
+    
+            if (info /= 0) then
+                write(*,*) 'problem with  dfeast_scsrev, info=', info
+            end if
+    
+            write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+            
+            ! console print of eigenvals for debug
+            do i=1,m
+                norm = 0.0
+                do j=1, n
+                    norm = norm + x(j,i)*(x(j,i))
+                end do
+                write(*,*) i, e(i), norm
             end do
-            write(*,*) i, e(i), norm
-        end do
-
-        do i=1,m
-            norm = 0.0
-            do j=1, n
-                norm = norm + x(j,i)*(x(j,i))
+    
+            do i=1,m
+                norm = 0.0
+                do j=1, n
+                    norm = norm + x(j,i)*(x(j,i))
+                end do
+                write(10,*) i, e(i), norm
             end do
-            write(10,*) i, e(i), norm
-        end do
+    
+            deallocate(val_arr, ia, ja, x, e, res)
+            close(10)
+         
+            call calc_timer%stop()
+            print *, "----------------------------------------"
+            print *, "END FEAST diagonalisation:"
+            call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+            call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+            call calc_timer%print_elapsed(time_unit%hours, "hours")
+            print *, "----------------------------------------"
+            call calc_timer%reset()
+            
+        end subroutine Hamiltonian_diag_feast_4
 
-        deallocate(val_arr, ia, ja, x, e, res)
-        close(10)
-     
-        call calc_timer%stop()
-        print *, "----------------------------------------"
-        print *, "END FEAST diagonalisation:"
-        call calc_timer%print_elapsed(time_unit%seconds, "seconds")
-        call calc_timer%print_elapsed(time_unit%minutes, "minutes")
-        call calc_timer%print_elapsed(time_unit%hours, "hours")
-        print *, "----------------------------------------"
+
+
+        subroutine Hamiltonian_diag_pfeast_multi_node(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+            use omp_lib
+            use mkl_vsl
+            use math_functions
+            use timing_utilities
+            implicit none
+            include 'mpif.h'
+    
+            integer, intent(in) :: N_spin
+            integer (8), intent(in) :: Sz_subspace_size
+            double precision, intent(in) :: J_spin
+            integer, allocatable, intent(inout) :: ia(:), ja(:)
+            double precision, allocatable, intent(inout) :: val_arr(:)
+
+            integer :: i, j, ind_i, ind_j, N_spin_max
+            double precision :: H_full_ij, element_value_cutoff
+            double precision :: norm 
+            double precision, allocatable :: x(:,:)
+            integer :: fpm(128)
+            double precision :: emin, emax
+            integer :: m0
+            double precision :: epsout
+            integer :: loop
+            double precision, allocatable :: e(:)
+            integer :: m
+            double precision, allocatable :: res(:)
+            CHARACTER*1 :: jobz, range, uplo
+            integer :: il, iu, ldz, liwork, lwork, info, m_eig, n
+            integer :: nL3, rank3, code
+            integer, allocatable :: ia_local(:), ja_local(:)
+            double precision, allocatable :: val_arr_local(:)
+            integer :: rows_per_proc, start_row, end_row, local_nnz
+
+            character(len=53) :: file_name   
+            type(timer) :: calc_timer
+
+    
+            write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast.dat'
+            open(10, file=trim(file_name), recl = 512)
+    
+    
+            call calc_timer%start()
+            print *, "----------------------------------------"
+            print *, "START FEAST diagonalisation"
+            print *, "----------------------------------------"
+
+            call MPI_INIT(code)
+    
+            !int 64 has 64 bits
+            !double precision has 64 bit
+    
+            !n=n     ! Sets the size of the problem
+            !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+
+            call pfeastinit(fpm, MPI_COMM_WORLD, nL3)  ! function specifying default parameters fpm of FEAST algorithm
+            fpm(1) = 1
+            fpm(2) = 12 !can be more, can be less
+            fpm(3) = 12 !eps 10^-fpm(3)
+            fpm(4) = 20 ! max number of feast loops
+            fpm(5) = 0 !initial subspace
+            fpm(6) = 0! stopping criterion
+            fpm(7) = 5 !Error trace sigle prec stop crit
+            fpm(14) = 0 ! standard use of feast
+            fpm(27) = 1 !check input matrices
+            fpm(28) = 1 !check if B is positive definite?
+            
+            uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
+            n = Sz_subspace_size ! Sets the size of the problem
+            !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
+            emin = -0.4465d0 * N_spin + 0.1801d0
+            !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
+            emax = -0.49773d0 * N_spin + 2.10030d0
+    
+            write(*,*) "Calculated lower bound: ", emin
+            write(*,*) "Calculated upper bound: ", emax
+    
+            m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
+            !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
+            !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+            
+            allocate( x(n,m0), e(m0), res(m0) )
+            write(*,*) 'Memory study 4: n,m0: ', n, m0
+            write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
+            write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
+            write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
+
+            !MPI comunicator scheduling: 
+
+            call MPI_COMM_RANK(fpm(49), rank3, code)
+            nL3 = 2 !number of nodes used
+            
+            rows_per_proc = Sz_subspace_size / nL3 !size of the problem divided by number of processors
+            ! Calculate local row range for this process
+            start_row = rank3 * rows_per_proc + 1
+            
+            ! Handle the case where n is not perfectly divisible by nL3
+            if (rank3 == nL3 - 1) then
+                end_row = Sz_subspace_size ! Last process takes remaining rows
+            else
+                end_row = start_row + rows_per_proc - 1
+            endif
+            
+            ! Calculate number of non-zeros in local portion
+            local_nnz = ia(end_row + 1) - ia(start_row)
+            
+            ! Allocate local arrays
+            allocate(ia_local(end_row - start_row + 1))  ! +1 because we need one more entry csr
+            allocate(ja_local(local_nnz))
+            allocate(val_arr_local(local_nnz))
+            
+            ! Fill local arrays
+            ! Adjust ia indices to start from 1 in local numbering
+            do i = 1, end_row - start_row + 2
+                ia_local(i) = ia(start_row + i - 1) - ia(start_row) + 1
+            end do
+            
+            ! Copy corresponding ja and values entriesz
+            ja_local(1:local_nnz) = ja(ia(start_row):ja(end_row+1)-1)
+            val_arr_local(1:local_nnz) = val_arr(ia(start_row):ia(end_row+1)-1)
         
-        end subroutine Hamiltonian_fill_diag_open_mp
+            
+            write(*,*) 'Before dfeast_scsrev... '
+            call pdfeast_scsrev(uplo, n, val_arr_local, ia_local, ja_local, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
+            write(*,*) 'eps_out= ', epsout
+            write(*,*) 'loop= ', loop
+            write(*,*) ' dfeast_scsrev info=', info
+            write(*,*) 'After  dfeast_scsrev... '
+    
+            if (info /= 0) then
+                write(*,*) 'problem with  dfeast_scsrev, info=', info
+            end if
+    
+            write(*,*) ' dfeast_scsrev eigenvalues found= ', m
+            
+            ! console print of eigenvals for debug
+            do i=1,m
+                norm = 0.0
+                do j=1, n
+                    norm = norm + x(j,i)*(x(j,i))
+                end do
+                write(*,*) i, e(i), norm
+            end do
+    
+            do i=1,m
+                norm = 0.0
+                do j=1, n
+                    norm = norm + x(j,i)*(x(j,i))
+                end do
+                write(10,*) i, e(i), norm
+            end do
+
+            deallocate(ia_local, ja_local, val_arr_local)
+            
+            if (rank3 == 0) then !only rank3=0 needs to do it
+                deallocate(val_arr, ia, ja)
+            endif    
+
+            call MPI_FINALIZE(code) !is this needed?
+
+            deallocate(x, e, res)
+            close(10)
+                    
+            call calc_timer%stop()
+            print *, "----------------------------------------"
+            print *, "END FEAST diagonalisation:"
+            call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+            call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+            call calc_timer%print_elapsed(time_unit%hours, "hours")
+            print *, "----------------------------------------"
+            call calc_timer%reset()
+            
+        end subroutine Hamiltonian_diag_pfeast_multi_node
 
 end module heisenberg 
-
-program spin_code
-    use heisenberg
-    use tests_module
-    use timing_utilities
-    implicit none
-
-    integer :: N_spin, N_spin_max 
-    integer (8) :: Sz_subspace_size
-    double precision :: J_spin, entropy_value, eigen_value_check, e_up, e_down
-    double precision :: start, finish, finish_one_spin, start_one_spin, Sz_choice
-    character(len = 12) :: N_spin_char, J_spin_char
-    integer, allocatable :: Sz_basis(:), hash_Sz(:), hash(:), indices_Sz_basis_sorted(:), basis_vector(:,:), basis_rho_target(:,:), new_basis(:,:)
-    double precision, allocatable :: target_sz(:), eigen_values(:), eigen_vectors(:,:), rho_reduced(:,:)
-    type(timer) :: calc_timer
-
-    call calc_timer%start()
-    If(command_argument_count().NE.2) Then
-        write(*,*)'Error, Only N (integer) and J (double precision) is required, program stopped'
-        stop 
-    endif 
-
-    call get_command_argument(1, N_spin_char)
-    call get_command_argument(2, J_spin_char)
-
-    read(N_spin_char, *) N_spin
-    read(J_spin_char, *) J_spin
-
-    !from test_module
-    write(*,*) '------- START test modules -------'
-
-    ! call mmm_csr_test()
-    call omp_mkl_small_test()
-    ! call test_permutation_H_for_4_sites()
-    ! call sparse_zfeast_test()
-    call sparse_dfeast_test()
-
-    write(*,*) '------- END test modules -------'
-
-    !N_spin = 4
-    !J_spin = 1 
-
-    write(*,*) '------- START Heisenberg Program -------'
-    write(*,*) 'Calculation of Heisenberg chain for N =', N_spin , 'and J = ', J_spin 
-    write(*,*) ' '
-
-    N_spin_max = 2**N_spin 
-    
-    !Sz_choice = 0.0d0 !integer counted from Sz_max (in a sense that Sz_choice = 1 means eg for N_spin=4, Sz_max=2 Sz=2)
-
-    !Choose always biggest subspace of the Hamiltonian
-    if (mod(N_spin,2) == 0.0d0) then !0 subspace for even 0.5 supspace for odd
-        Sz_choice = 0.0d0 
-    else 
-        Sz_choice = 0.5d0  
-    endif 
-    
-    call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
-
-    call Hamiltonian_fill_diag_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz)
-
-    write(*,*) " "
-    write(*,*) "Program executed with success"
-    call calc_timer%stop()
-    call calc_timer%print_elapsed(time_unit%seconds, "seconds")
-    call calc_timer%print_elapsed(time_unit%minutes, "minutes")
-    call calc_timer%print_elapsed(time_unit%hours, "hours")
-    write(*,*) '------- END Heisenberg Program -------'
-
-    
-
-end program spin_code
