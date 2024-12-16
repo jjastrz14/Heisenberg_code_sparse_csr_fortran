@@ -60,9 +60,9 @@ program spin_code
         allocate(ia(5), ja(10), val_arr(10))
 
         !4x4 matrix, remember to adjust the number of nodes to the size of the problem
-        !ia = (/0, 3, 5, 7, 9/)
-        !ja = (/0, 1, 2, 1, 2, 3, 2, 3, 0, 3/)
-        !val_arr = (/1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0/)
+        ia = (/1, 4, 6, 8, 10/)
+        ja = (/1, 2, 3, 2, 3, 4, 3, 4, 1, 4/)
+        val_arr = (/2.0d0, -1.0d0, -1.0d0, 3.0d0, -1.0d0, -1.0d0, 3.0d0, -1.0d0, -1.0d0, 2.0d0/)
 
         ! Calculate sizes for MPI communication
         write(*,*) "ia_size", size(ia)
