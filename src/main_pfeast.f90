@@ -55,11 +55,20 @@ program spin_code
         ! Sequential calculations - only on rank 0
         ! These build the Hamiltonian matrix in CSR format
         call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
-        call Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
+        !call Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
+        Sz_subspace_size = 4
+        allocate(ia(5), ja(10), val_arr(10))
+
+        !4x4 matrix, remember to adjust the number of nodes to the size of the problem
+        !ia = (/0, 3, 5, 7, 9/)
+        !ja = (/0, 1, 2, 1, 2, 3, 2, 3, 0, 3/)
+        !val_arr = (/1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0, 1.0d0/)
 
         ! Calculate sizes for MPI communication
-        ja_size = ia(Sz_subspace_size + 1) - 1  ! Size of ja array in CSR format
-        val_size = ja_size                      ! val_arr has same size as ja
+        write(*,*) "ia_size", size(ia)
+        ja_size = ia(size(ia)) - 1  ! Size of ja array in CSR format
+        write(*,*) "ja_size", ja_size
+        val_size = ja_size      ! val_arr has same size as ja
     endif
 
     ! Broadcast essential parameters to all processes
@@ -82,7 +91,7 @@ program spin_code
     call MPI_BCAST(val_arr, val_size, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, code)
 
     ! Now all processes have the matrix data and can participate in parallel diagonalization
-    call Hamiltonian_diag_pfeast_multi_node(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+    call Hamiltonian_diag_pfeast_multi_node_full_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
 
     if (rank == 0) then
         write(*,*) " "
