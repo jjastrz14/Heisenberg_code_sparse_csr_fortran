@@ -644,9 +644,9 @@ module heisenberg
             uplo='F' !'U' ! If uplo = 'U', a stores the upper triangular parts of A.
             n = Sz_subspace_size ! Sets the size of the problem
             !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
-            emin = 3!-0.4465d0 * N_spin + 0.1801d0
+            emin = -20!-0.4465d0 * N_spin + 0.1801d0
             !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
-            emax = 5!-0.49773d0 * N_spin + 2.10030d0
+            emax = 20!-0.49773d0 * N_spin + 2.10030d0
             
             if (rank3 == 0) then
                 write(*,*) "Calculated lower bound: ", emin
@@ -701,7 +701,7 @@ module heisenberg
                     norm = norm + x(j,i)*(x(j,i))
                 end do
                 write(*,*) 'Eigenvalue', i
-                write(*,*) i, e(i), norm
+                write(*,*) i, e(i), norm, "node: ", rank3
             end do
             write(*,*) 'Process ', rank3, ' eigenvalues printed'
 
