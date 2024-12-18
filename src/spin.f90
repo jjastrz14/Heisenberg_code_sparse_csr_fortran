@@ -713,6 +713,7 @@ module heisenberg
                 write(*,*) "allocation at master succesful!"
             end if
 
+            !to ponizej nie potrzebne, bo kazdy procek ma swoje eigenvalues, nie wiem jak ogarnac eigenvecs
             ! Gather all eigenvalues and eigenvectors to rank3 == 0
             call MPI_GATHER(e, m, MPI_DOUBLE_PRECISION, &
             gathered_eigenvalues, m, MPI_DOUBLE_PRECISION, &
@@ -756,5 +757,243 @@ module heisenberg
             endif    
             
         end subroutine Hamiltonian_diag_pfeast_multi_node_full_matrix
+
+
+
+        subroutine Hamiltonian_diag_pfeast_multi_node_upper_traingular_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+            use omp_lib
+            use mkl_vsl
+            use math_functions
+            use timing_utilities
+            implicit none
+            include 'mpif.h'
+    
+            integer, intent(in) :: N_spin
+            integer (8), intent(in) :: Sz_subspace_size
+            double precision, intent(in) :: J_spin
+            integer, allocatable, intent(inout) :: ia(:), ja(:)
+            double precision, allocatable, intent(inout) :: val_arr(:)
+
+            integer :: i, j, ind_i, ind_j, N_spin_max
+            double precision :: H_full_ij, element_value_cutoff
+            double precision :: norm 
+            double precision, allocatable :: x(:,:)
+            integer :: fpm(128)
+            double precision :: emin, emax
+            integer :: m0
+            double precision :: epsout
+            integer :: loop
+            double precision, allocatable :: e(:)
+            integer :: m
+            double precision, allocatable :: res(:)
+            CHARACTER*1 :: jobz, range, uplo
+            integer :: il, iu, ldz, liwork, lwork, info, m_eig, n
+            integer :: nL3, rank3, code
+            integer, allocatable :: ia_local(:), ja_local(:)
+            double precision, allocatable :: val_arr_local(:)
+            double precision, allocatable :: gathered_eigenvalues(:), gathered_eigenvectors(:,:)
+            integer :: rows_per_proc, start_row, end_row, local_nnz
+
+            character(len=53) :: file_name   
+            type(timer) :: calc_timer
+
+    
+            if (rank3 == 0) then
+
+                call calc_timer%start()
+                print *, "----------------------------------------"
+                print *, "START FEAST diagonalisation"
+                print *, "----------------------------------------"
+                !debug: 
+                do i=1,size(ia)
+                    write(*,*) "index array: ", ia(i)
+                end do
+
+                do i=1, size(ja)
+                    write(*,*) "ja and values array: ", ja(i), val_arr(i)
+                end do 
+            end if
+
+
+            call MPI_COMM_SIZE(MPI_COMM_WORLD, nL3, code) !nL3 is the number of nodes!
+
+            call pfeastinit(fpm, MPI_COMM_WORLD, nL3)  ! function specifying default parameters fpm of FEAST algorithm
+
+            !MPI comunicator scheduling: 
+            call MPI_COMM_RANK(fpm(49), rank3, code)
+            
+            rows_per_proc = Sz_subspace_size / nL3 !size of the problem divided by number of nodes
+
+            if (rank3 == nL3 - 1) then
+                rows_per_proc = Sz_subspace_size - (nL3 - 1) * rows_per_proc
+            endif
+
+            ! Calculate local row range for this process
+            start_row = rank3 * (Sz_subspace_size / nL3) + 1
+            end_row = start_row + rows_per_proc - 1
+
+            ! Make sure we're not going past array bounds
+            if (end_row > Sz_subspace_size) then
+                end_row = Sz_subspace_size
+            endif
+            
+            ! Calculate number of non-zeros in local portion
+            local_nnz = ia(end_row + 1) - ia(start_row)
+
+            ! Debug output to verify distribution
+            write(*,*) 'Process ', rank3, ' handling rows ', start_row, ' to ', end_row
+            write(*,*) 'Local non-zeros: ', local_nnz
+
+            ! Allocate local arrays with verified sizes
+            allocate(ia_local(rows_per_proc + 1), stat=info)  ! +1 for CSR format
+            if (info /= 0) write(*,*) 'Error allocating ia_local on process ', rank3
+            allocate(ja_local(local_nnz), stat=info)
+            if (info /= 0) write(*,*) 'Error allocating ja_local on process ', rank3
+            allocate(val_arr_local(local_nnz), stat=info)
+            if (info /= 0) write(*,*) 'Error allocating val_arr_local on process ', rank3
+            
+            ! Fill local arrays
+            ! Adjust ia indices to start from 1 in local numbering
+            do i = 1, end_row - start_row + 2
+                ia_local(i) = ia(start_row + i - 1) - ia(start_row) + 1
+            end do
+            
+            ! Copy corresponding ja and values entries
+            ja_local(1:local_nnz) = ja(ia(start_row):ia(end_row+1)-1)
+            val_arr_local(1:local_nnz) = val_arr(ia(start_row):ia(end_row+1)-1)
+
+            !int 64 has 64 bits
+            !double precision has 64 bit
+    
+            !n=n     ! Sets the size of the problem
+            !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+        
+            fpm(1) = 1
+            fpm(2) = 12 !can be more, can be less
+            fpm(3) = 12 !eps 10^-fpm(3)
+            fpm(4) = 20 ! max number of feast loops
+            fpm(5) = 0 !initial subspace
+            fpm(6) = 0! stopping criterion
+            fpm(7) = 5 !Error trace sigle prec stop crit
+            fpm(14) = 0 ! standard use of feast
+            fpm(27) = 1 !check input matrices
+            fpm(28) = 1 !check if B is positive definite?
+            
+            uplo='F' !'U' ! If uplo = 'U', a stores the upper triangular parts of A.
+            n = Sz_subspace_size ! Sets the size of the problem
+            !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
+            emin = -20!-0.4465d0 * N_spin + 0.1801d0
+            !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
+            emax = 20!-0.49773d0 * N_spin + 2.10030d0
+            
+            if (rank3 == 0) then
+                write(*,*) "Calculated lower bound: ", emin
+                write(*,*) "Calculated upper bound: ", emax
+            end if 
+
+            !m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
+            m0 = Sz_subspace_size
+            !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
+            !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+
+            allocate( x(rows_per_proc,m0), e(m0), res(m0) )
+            write(*,*) 'Memory study 4: n,m0: ', n, m0
+            !write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
+            !write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
+            !write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
+
+            ! Debug output before FEAST
+            write(*,*) 'Process ', rank3, ' ready for FEAST with:'
+            write(*,*) '  Local rows: ', rows_per_proc
+            write(*,*) '  Local non-zeros: ', local_nnz
+            !write(*,*) '  Memory allocated for x:', rows_per_proc * m0 * 8, ' bytes'
+            do i=1,size(ia_local)
+                write(*,*) "index array: ", ia_local(i)
+            enddo
+
+            do i=1, size(ja_local)
+                write(*,*) "ja and values array: ", ja_local(i), val_arr_local(i)
+            enddo 
+
+            call MPI_BARRIER(MPI_COMM_WORLD, code)
+
+            write(*,*) 'Before dfeast_scsrev... '
+            call pdfeast_scsrev(uplo, rows_per_proc, val_arr_local, ia_local, ja_local, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
+            write(*,*) 'eps_out= ', epsout
+            write(*,*) 'loop= ', loop
+            write(*,*) ' dfeast_scsrev info=', info
+            write(*,*) 'After  dfeast_scsrev... '
+    
+            if (info /= 0) then
+                write(*,*) 'problem with  dfeast_scsrev, info=', info
+            end if
+    
+            write(*,*) 'Process ', rank3, 'pdfeast_scsrev eigenvalues found= ', m
+            
+            ! console print of eigenvals for debug
+            
+            write(*,*) 'Process ', rank3, ' eigenvalue:'
+            do i=1,m
+                norm = 0.0
+                do j=1, n
+                    norm = norm + x(j,i)*(x(j,i))
+                end do
+                write(*,*) 'Eigenvalue', i
+                write(*,*) i, e(i), norm, "node: ", rank3
+            end do
+            write(*,*) 'Process ', rank3, ' eigenvalues printed'
+
+            call MPI_BARRIER(MPI_COMM_WORLD, code)
+
+            if (rank3 == 0) then
+                allocate(gathered_eigenvalues(m*nL3))
+                allocate(gathered_eigenvectors(m*nL3,n))
+                write(*,*) "allocation at master succesful!"
+            end if
+
+            !to ponizej nie potrzebne, bo kazdy procek ma swoje eigenvalues, nie wiem jak ogarnac eigenvecs
+            ! Gather all eigenvalues and eigenvectors to rank3 == 0
+            call MPI_GATHER(e, m, MPI_DOUBLE_PRECISION, &
+            gathered_eigenvalues, m, MPI_DOUBLE_PRECISION, &
+            0, MPI_COMM_WORLD, code)
+
+            call MPI_GATHER(x, m*n, MPI_DOUBLE_PRECISION, &
+            gathered_eigenvectors, m*n, MPI_DOUBLE_PRECISION, &
+            0, MPI_COMM_WORLD, code)
+  
+            deallocate(ia_local, ja_local, val_arr_local)
+
+            deallocate(x, e, res)
+
+            write(*,*) "After MPI gather"
+
+            call MPI_BARRIER(MPI_COMM_WORLD, code)
+
+            if (rank3 == 0) then !only rank3=0 needs to do it
+
+                write(file_name, '(A,I0,A)') 'Eigenvalues_results_', N_spin, '_feast_test_full.dat'
+                open(10, file=trim(file_name), recl = 512)
+                
+                !save to file done by single node
+                do i=1,m*nL3
+                    norm = 0.0
+                    do j=1, n
+                       norm = norm + gathered_eigenvectors(j,i)*(gathered_eigenvectors(j,i))
+                    end do
+                    write(10,*) i, gathered_eigenvalues(i), norm
+                end do
+
+                call calc_timer%stop()
+                print *, "----------------------------------------"
+                print *, "END FEAST diagonalisation:"
+                call calc_timer%print_elapsed(time_unit%seconds, "seconds")
+                call calc_timer%print_elapsed(time_unit%minutes, "minutes")
+                call calc_timer%print_elapsed(time_unit%hours, "hours")
+                print *, "----------------------------------------"
+                call calc_timer%reset()
+                close(10)
+            endif    
+            
+        end subroutine Hamiltonian_diag_pfeast_multi_node_upper_traingular_matrix
 
 end module heisenberg 
