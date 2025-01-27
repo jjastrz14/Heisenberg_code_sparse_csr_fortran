@@ -4,5 +4,8 @@
 
 #executable
 /heisenberg
+/heisenberg_pfeast
+/pfeast_test_full
+/pfeast_test_upper
 
 Eigen*

@@ -55,14 +55,14 @@ program spin_code
         ! Sequential calculations - only on rank 0
         ! These build the Hamiltonian matrix in CSR format
         call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
-        !call Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
-        Sz_subspace_size = 4
-        allocate(ia(5), ja(14), val_arr(14))
-
+        call Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
+        
+        !Sz_subspace_size = 4
+        !allocate(ia(5), ja(14), val_arr(14))
         !4x4 matrix, remember to adjust the number of nodes to the size of the problem
-        ia = (/1, 4, 8, 12, 15/)
-        ja = (/1, 2, 3, 1, 2, 3, 4, 1, 2, 3, 4, 2, 3, 4/)
-        val_arr = (/2.0d0, -1.0d0, -1.0d0, -1.0d0, 3.0d0, -1.0d0, -1.0d0, -1.0d0, -1.0d0, 3.0d0, -1.0d0, -1.0d0, -1.0d0, 2.0d0/)
+        !ia = (/1, 4, 8, 12, 15/)
+        !ja = (/1, 2, 3, 1, 2, 3, 4, 1, 2, 3, 4, 2, 3, 4/)
+        !val_arr = (/2.0d0, -1.0d0, -1.0d0, -1.0d0, 3.0d0, -1.0d0, -1.0d0, -1.0d0, -1.0d0, 3.0d0, -1.0d0, -1.0d0, -1.0d0, 2.0d0/)
 
         ! Calculate sizes for MPI communication
         write(*,*) "ia_size", size(ia)
@@ -91,7 +91,7 @@ program spin_code
     call MPI_BCAST(val_arr, val_size, MPI_DOUBLE_PRECISION, 0, MPI_COMM_WORLD, code)
 
     ! Now all processes have the matrix data and can participate in parallel diagonalization
-    call Hamiltonian_diag_pfeast_multi_node_full_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+    call Hamiltonian_diag_pfeast_multi_node_upper_train_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
 
     if (rank == 0) then
         write(*,*) " "

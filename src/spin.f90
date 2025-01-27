@@ -759,8 +759,28 @@ module heisenberg
         end subroutine Hamiltonian_diag_pfeast_multi_node_full_matrix
 
 
+        subroutine Hamiltonian_mpi_redistribution(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+            use omp_lib
+            use mkl_vsl
+            use math_functions
+            use timing_utilities
+            implicit none
+            include 'mpif.h'
 
-        subroutine Hamiltonian_diag_pfeast_multi_node_upper_traingular_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+            integer, intent(in) :: N_spin
+            integer (8), intent(in) :: Sz_subspace_size
+            double precision, intent(in) :: J_spin
+            integer, allocatable, intent(in) :: ia(:), ja(:)
+            double precision, allocatable, intent(in) :: val_arr(:)
+
+            integer :: nL3, rank3, code
+            integer, allocatable :: ia_local(:), ja_local(:)
+            double precision, allocatable :: val_arr_local(:)
+
+            !here stop continue with the function 
+
+
+        subroutine Hamiltonian_diag_pfeast_multi_node_upper_train_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
             use omp_lib
             use mkl_vsl
             use math_functions
@@ -879,7 +899,7 @@ module heisenberg
             fpm(27) = 1 !check input matrices
             fpm(28) = 1 !check if B is positive definite?
             
-            uplo='F' !'U' ! If uplo = 'U', a stores the upper triangular parts of A.
+            uplo='U' !'U' ! If uplo = 'U', a stores the upper triangular parts of A.
             n = Sz_subspace_size ! Sets the size of the problem
             !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
             emin = -20!-0.4465d0 * N_spin + 0.1801d0
@@ -994,6 +1014,6 @@ module heisenberg
                 close(10)
             endif    
             
-        end subroutine Hamiltonian_diag_pfeast_multi_node_upper_traingular_matrix
+        end subroutine Hamiltonian_diag_pfeast_multi_node_upper_train_matrix
 
 end module heisenberg 
