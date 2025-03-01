@@ -5,11 +5,12 @@ program spin_code
     use mpi
     implicit none
 
-    integer :: N_spin, N_spin_max, code
+    integer :: N_spin, N_spin_max, code, ierror
     integer (8) :: Sz_subspace_size
     double precision :: J_spin, Sz_choice
     character(len = 12) :: N_spin_char, J_spin_char
-    integer, allocatable :: hash_Sz(:), ia(:), ja(:)
+    integer, allocatable :: ia(:), ja(:)
+    integer, allocatable :: hash_Sz(:) !check if it should be integer(8)
     double precision, allocatable :: target_sz(:), val_arr(:)
     integer :: rank, nprocs
     
@@ -20,6 +21,17 @@ program spin_code
     call MPI_INIT(code)
     call MPI_COMM_RANK(MPI_COMM_WORLD, rank, code)
     call MPI_COMM_SIZE(MPI_COMM_WORLD, nprocs, code)
+
+    !test for MPI+OpenMP
+    call MPI_plus_OpenMP_test()
+
+    !Sz_subspace calucation and hash_Sz generation
+    call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
+    call Hamiltonian_mpi_redistribution(N_spin, J_spin, Sz_subspace_size, hash_Sz)
+
+    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
+    write(*,*) 'EVRYTHING BELOW TO DEBUG'
+    call MPI_BARRIER(MPI_COMM_WORLD, ierror)
 
     ! Only rank 0 performs the initial setup and calculations
     if (rank == 0) then
@@ -54,7 +66,6 @@ program spin_code
         
         ! Sequential calculations - only on rank 0
         ! These build the Hamiltonian matrix in CSR format
-        call Sz_subspace_choice(N_spin, Sz_choice, hash_Sz, Sz_subspace_size)
         call Hamiltonian_fill_open_mp(N_spin, J_spin, Sz_subspace_size, hash_Sz, ia, ja, val_arr)
         
         !Sz_subspace_size = 4

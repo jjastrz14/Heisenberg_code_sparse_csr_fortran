@@ -759,7 +759,7 @@ module heisenberg
         end subroutine Hamiltonian_diag_pfeast_multi_node_full_matrix
 
 
-        subroutine Hamiltonian_mpi_redistribution(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
+        subroutine Hamiltonian_mpi_redistribution(N_spin, J_spin, Sz_subspace_size, hash_Sz)
             use omp_lib
             use mkl_vsl
             use math_functions
@@ -770,15 +770,35 @@ module heisenberg
             integer, intent(in) :: N_spin
             integer (8), intent(in) :: Sz_subspace_size
             double precision, intent(in) :: J_spin
-            integer, allocatable, intent(in) :: ia(:), ja(:)
-            double precision, allocatable, intent(in) :: val_arr(:)
+            integer, allocatable :: hash_Sz(:)
 
-            integer :: nL3, rank3, code
+            integer :: size_of_cluster, local_process_ID, ierror
+            integer :: rows_per_mpi, i
             integer, allocatable :: ia_local(:), ja_local(:)
             double precision, allocatable :: val_arr_local(:)
 
-            !here stop continue with the function 
+            call MPI_COMM_RANK(MPI_COMM_WORLD, local_process_ID, ierror)
+            if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_RANK', ierror
+            call MPI_COMM_SIZE(MPI_COMM_WORLD, size_of_cluster, ierror)
+            if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_SIZE ', ierror
+            
+            !N_mat x N_mat = Sz_subspace_size x Sz_subspace_size
+            rows_per_mpi = NINT((Sz_subspace_size +0.0d0)/(size_of_cluster+0.0d0))
+            write(*,*) 'nearest int of Sz_subspace_size/size_of_cluster', local_process_ID, rows_per_mpi
 
+            if (local_process_ID == size_of_cluster - 1) then
+                rows_per_mpi = Sz_subspace_size - (size_of_cluster - 1) * rows_per_mpi
+            endif
+
+            write(*,*) 'test of rows_per_proc', local_process_ID, rows_per_mpi
+
+            do i=1, size_of_cluster
+                if (local_process_ID == i-1) then
+                    write(*,*) 'local_process_ID = ', local_process_ID, 'hash_Sz(1-3) = ', hash_Sz(1), hash_Sz(2), hash_sz(3)
+                end if
+            end do
+
+        end subroutine Hamiltonian_mpi_redistribution
 
         subroutine Hamiltonian_diag_pfeast_multi_node_upper_train_matrix(N_spin, J_spin, Sz_subspace_size, ia, ja, val_arr)
             use omp_lib

@@ -25,7 +25,9 @@ ifx -o heisenberg src/main_spin_code_feast_time_window.f90  -module build/ -L$FE
 
 ifx -o heisenberg -module build/ src/utils.f90 src/tests_module.f90 src/spin.f90 src/main.f90 -L$FEASTROOT -lfeast -qmkl -qopenmp
 
+#for pfeast a aout because anonymous
+mpiifx -o a.out -module build/ src/utils.f90 src/tests_module.f90 src/spin.f90 src/main_pfeast.f90 -L$FEASTROOT -lpfeast -qmkl=parallel -qopenmp -lmkl_blacs_intelmpi_lp64 -liomp5 -lpthread -lm -ldl
+
+
 #godot to run on several processors: taskset -c 0-3 ./heisenberg 10 1.0
-
-
 mpirun -np 2 -genv OMP_NUM_THREADS 8 ./heisenberg_pfeast 4 1.0
