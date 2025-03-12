@@ -1,17 +1,16 @@
 subroutine distribute_rows(N, num_processes, start_rows, end_rows, elements, ierr)
   implicit none
-  integer, intent(in) :: N                ! Size of the matrix (N x N)
-  integer, intent(in) :: num_processes    ! Number of MPI processes
-  integer, intent(out) :: start_rows(num_processes) ! Start row for each process
-  integer, intent(out) :: end_rows(num_processes)   ! End row for each process
-  integer, intent(out) :: elements(num_processes)   ! Number of elements per process
+  integer(8), intent(in) :: N                ! Size of the matrix (N x N)
+  integer(8), intent(in) :: num_processes    ! Number of MPI processes
+  integer(8), intent(out) :: start_rows(num_processes) ! Start row (1-based)
+  integer(8), intent(out) :: end_rows(num_processes)   ! End row (1-based)
+  integer(8), intent(out) :: elements(num_processes)   ! Elements per process
   integer, intent(out) :: ierr            ! Error flag (0=success, -1=invalid input)
-  
-  integer :: row_sizes(N)                 ! Number of elements in each row (1-based)
-  integer :: prefix_sums(N)               ! Cumulative sum of elements
-  real :: target, target_cumulative       ! Target elements per process
-  integer :: total_elements               ! Total elements in the upper triangle
-  integer :: current_start, proc_id, j, best_split, min_diff, current_sum, p
+
+  double precision :: total_elements               ! Total elements in upper triangle
+  double precision :: target                           ! Target elements per process
+  integer(8) :: current_start, proc_id, j, best_split, min_diff, temp_sum, p
+  integer(8) :: n_rows, first_element, last_element
 
   ! Initialize error flag
   ierr = 0
@@ -22,46 +21,35 @@ subroutine distribute_rows(N, num_processes, start_rows, end_rows, elements, ier
     return
   end if
 
-  ! Compute row sizes (1-based)
-  do j = 1, N
-    row_sizes(j) = N - j + 1
-  end do
+  ! Total elements = N*(N+1)/2
+  total_elements = N * (N + 1.0d0) / 2.0d0
+  target = (total_elements+0.0d0) / (num_processes+0.0d0)
+  write(*,*) "Total elements:", total_elements
+  write(*,*) "Target elements per process:", target
 
-  ! Compute prefix sums (cumulative elements up to each row)
-  prefix_sums(1) = row_sizes(1)
-  do j = 2, N
-    prefix_sums(j) = prefix_sums(j-1) + row_sizes(j)
-  end do
-  total_elements = prefix_sums(N)
-
-  ! Calculate target elements per process
-  target = real(total_elements) / real(num_processes)
-
-  current_start = 1  ! Start from the first row
+  current_start = 1  ! Start from row 1
 
   ! Distribute rows across processes
   do proc_id = 1, num_processes
     if (proc_id == num_processes) then
-      ! Last process gets all remaining rows
+      ! Last process gets remaining rows
       start_rows(proc_id) = current_start
       end_rows(proc_id) = N
       exit
     end if
 
-    ! Target cumulative elements for this process
-    target_cumulative = proc_id * target
-
-    ! Find the best split point
-    min_diff = HUGE(0)  ! Initialize to a large number
+    min_diff = HUGE(0)  ! Initialize to largest integer
     best_split = current_start
+    temp_sum = 0
 
+    ! Dynamically compute cumulative sum
     do j = current_start, N
-      current_sum = prefix_sums(j)
-      if (ABS(current_sum - target_cumulative) < min_diff) then
-        min_diff = ABS(current_sum - target_cumulative)
+      temp_sum = temp_sum + (N - j + 1)  ! Elements in row j
+      if (abs(temp_sum - target) < min_diff) then
+        min_diff = abs(temp_sum - target)
         best_split = j
-      else if (current_sum > target_cumulative) then
-        exit  ! No better split exists beyond this point
+      else if (temp_sum > target) then
+        exit  ! Stop if sum exceeds target
       end if
     end do
 
@@ -70,27 +58,29 @@ subroutine distribute_rows(N, num_processes, start_rows, end_rows, elements, ier
     end_rows(proc_id) = best_split
     current_start = best_split + 1
 
-    ! Exit early if no more rows to assign (handle remaining processes)
+    ! Handle no remaining rows
     if (current_start > N) then
-      ! Set remaining processes to have no rows
       do p = proc_id + 1, num_processes
         start_rows(p) = 1
         end_rows(p) = 0
       end do
-      exit  ! Break outer loop after handling remaining processes
+      exit
     end if
   end do
 
-  ! Calculate elements per process
+  ! Calculate elements using arithmetic series formula
   do proc_id = 1, num_processes
     if (start_rows(proc_id) > end_rows(proc_id)) then
       elements(proc_id) = 0
     else
-      elements(proc_id) = sum(row_sizes(start_rows(proc_id):end_rows(proc_id)))
+      n_rows = end_rows(proc_id) - start_rows(proc_id) + 1
+      first_element = N - start_rows(proc_id) + 1
+      last_element = N - end_rows(proc_id) + 1
+      elements(proc_id) = n_rows * (first_element + last_element) / 2
     end if
   end do
 
-  ! Verify all elements are assigned
+  ! Verify total elements
   if (sum(elements) /= total_elements) ierr = -2
 
 end subroutine distribute_rows
@@ -98,8 +88,8 @@ end subroutine distribute_rows
 
 program test_distribute_rows
     implicit none
-    integer, parameter :: N = 20, num_processes = 3
-    integer :: start_rows(num_processes), end_rows(num_processes), elements(num_processes)
+    integer(8), parameter :: N = 184756 , num_processes = 3 !252 !184756
+    integer(8) :: start_rows(num_processes), end_rows(num_processes), elements(num_processes)
     integer :: ierr, i
 
     call distribute_rows(N, num_processes, start_rows, end_rows, elements, ierr)
