@@ -140,11 +140,13 @@ module tests_module
     end subroutine omp_mkl_small_test
 
     subroutine MPI_plus_OpenMP_test()
-
         use omp_lib
         implicit none 
         include 'mpif.h'
         integer :: ierror, size_of_cluster, local_process_ID, omp_id
+
+        write(*,*) '----------- MPI + OpenMP test-----------'
+        write(*,*) " "
 
         call MPI_COMM_SIZE(MPI_COMM_WORLD, size_of_cluster, ierror) !get number of MPI processes
         if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_SIZE ', ierror
@@ -164,6 +166,9 @@ module tests_module
             omp_id = omp_get_thread_num()
             write(*,*) 'MPI - OpenMP thread check', local_process_ID, omp_id
         !$OMP END PARALLEL
+
+        write(*,*) '----------- MPI + OpenMP test end -----------'
+        write(*,*) " "
 
     end subroutine MPI_plus_OpenMP_test
 

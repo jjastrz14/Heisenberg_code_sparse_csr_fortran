@@ -5,19 +5,12 @@ program spin_code
     use mpi
     implicit none
 
-    integer :: N_spin, N_spin_max, code, ierror
-    integer (8) :: Sz_subspace_size
+    integer (8) :: N_spin, N_spin_max, Sz_subspace_size, size_ia, size_ja, size_val 
     double precision :: J_spin, Sz_choice
     character(len = 12) :: N_spin_char, J_spin_char
-    integer, allocatable :: ia(:), ja(:)
-    integer, allocatable :: hash_Sz(:) !check if it should be integer(8)
-    double precision, allocatable :: target_sz(:), val_arr(:)
-    integer :: rank, nprocs
-    
-    integer :: ja_size, val_size
+    integer (8), allocatable :: hash_Sz(:) !check if it should be integer(8)
+    integer :: rank, nprocs, code, ierror
     type(timer) :: calc_timer_main
-
-
         
     ! Process command line arguments
     If(command_argument_count().NE.2) Then
@@ -64,8 +57,10 @@ program spin_code
     endif 
     
     ! These build the Hamiltonian matrix in CSR format
-    call H_XXX_MPI_OpenMP_pfeast(hash_Sz, Sz_subspace_size,  N_spin, J_spin) 
+    call Hamiltonian_MPI_OpenMP_pfeast(hash_Sz, Sz_subspace_size,  N_spin, J_spin, size_ia, size_ja, size_val) 
 
+    ! Subroutine to PFEAST diagonalization
+    call Hamiltonian_pfeast_diagonalisation(size_ia, size_ja, size_val)
 
     if (rank == 0) then
         write(*,*) " "

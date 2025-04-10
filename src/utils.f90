@@ -24,7 +24,7 @@ module math_functions
     end subroutine index_map
     
     subroutine binomialCoefficient(n, k, C)
-        integer, intent(in)  :: n, k
+        integer (8), intent(in)  :: n, k
         integer(8), intent(out) :: C
         !use, intrinsic :: iso_fortran_env, only: real64, int64
         !integer(int64) :: x
