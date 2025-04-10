@@ -139,33 +139,33 @@ module tests_module
 
     end subroutine omp_mkl_small_test
 
-    subroutine MPI_plus_OpenMP_test()
+    ! subroutine MPI_plus_OpenMP_test()
 
-        use omp_lib
-        implicit none 
-        include 'mpif.h'
-        integer :: ierror, size_of_cluster, local_process_ID, omp_id
+    !     use omp_lib
+    !     implicit none 
+    !     include 'mpif.h'
+    !     integer :: ierror, size_of_cluster, local_process_ID, omp_id
 
-        call MPI_COMM_SIZE(MPI_COMM_WORLD, size_of_cluster, ierror) !get number of MPI processes
-        if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_SIZE ', ierror
-        write(*,*) 'size of the cluster is = ', size_of_cluster
+    !     call MPI_COMM_SIZE(MPI_COMM_WORLD, size_of_cluster, ierror) !get number of MPI processes
+    !     if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_SIZE ', ierror
+    !     write(*,*) 'size of the cluster is = ', size_of_cluster
 
-        call MPI_COMM_RANK(MPI_COMM_WORLD, local_process_ID, ierror) !get local process ID
-        if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_RANK ', ierror
+    !     call MPI_COMM_RANK(MPI_COMM_WORLD, local_process_ID, ierror) !get local process ID
+    !     if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_RANK ', ierror
 
-        write(*,*) 'List of processes before MPI barrier', local_process_ID
-        call MPI_BARRIER(MPI_COMM_WORLD, ierror) !synchronize all processes
-        if (ierror .NE. 0) write(*,*) 'error after MPI_BARRIER ', ierror
-        write(*,*) 'List of processes after MPI barrier', local_process_ID
+    !     write(*,*) 'List of processes before MPI barrier', local_process_ID
+    !     call MPI_BARRIER(MPI_COMM_WORLD, ierror) !synchronize all processes
+    !     if (ierror .NE. 0) write(*,*) 'error after MPI_BARRIER ', ierror
+    !     write(*,*) 'List of processes after MPI barrier', local_process_ID
 
-        !OpenMP processors listed here:
-        write(*,*) 'OpenMP processors check'
-        !$OMP PARALLEL PRIVATE(omp_id)
-            omp_id = omp_get_thread_num()
-            write(*,*) 'MPI - OpenMP thread check', local_process_ID, omp_id
-        !$OMP END PARALLEL
+    !     !OpenMP processors listed here:
+    !     write(*,*) 'OpenMP processors check'
+    !     !$OMP PARALLEL PRIVATE(omp_id)
+    !         omp_id = omp_get_thread_num()
+    !         write(*,*) 'MPI - OpenMP thread check', local_process_ID, omp_id
+    !     !$OMP END PARALLEL
 
-    end subroutine MPI_plus_OpenMP_test
+    ! end subroutine MPI_plus_OpenMP_test
 
     subroutine sparse_zfeast_test()
     
