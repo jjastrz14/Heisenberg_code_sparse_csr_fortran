@@ -451,6 +451,7 @@ module heisenberg
         allocate(mpi_rows_collected(MPI,2))
         !%perfect_N = floor((N/2*(N+1))/MPI);
         perfect_N = NINT((N/2.0d0*(N+1.0d0))/(MPI + 0.0d0));
+        !overflow for perfect N for big spins? 
         write(*,*) 'perfect_N=', perfect_N
     
         !below calculation how many rows per mpi process
@@ -516,13 +517,13 @@ module heisenberg
     end subroutine MPI_workload_balancing
 
     
-    subroutine Hamiltonian_MPI_OpenMP_pfeast(hash_Sz, Sz_subspace_size,  N_spin, J_spin, size_ia, size_ja, size_val)        
+    subroutine Hamiltonian_MPI_OpenMP_pfeast(hash_Sz, Sz_subspace_size,  N_spin, J_spin, size_ia, size_ja, size_val, number_of_rows_local_MPI)        
         use omp_lib    
         implicit none    
         include 'mpif.h'
         integer(8), intent(in) :: Sz_subspace_size, N_spin
         double precision, intent(in) :: J_spin
-        integer(8), intent (out) :: size_ia, size_ja, size_val
+        integer(8), intent (out) :: size_ia, size_ja, size_val, number_of_rows_local_MPI
         integer(8), allocatable :: hash_Sz(:)
         integer(8) :: N, MPI, perfect_N, elements_left, ind, ind2, mpi_row_start, ind_mpi, rows_per_mpi, el_in_row, el_to_be_burn, total_rows_burn, sum_check, no_of_els_to_calculate, row_start, row_end, id_ind, window_size, windows_per_row, row, ind_inside_window, ind_i, ind_j, window, last_index, ia_temp_ind, temp_ind, no_of_ja_val_el, i, start_row, end_row
         integer(8), allocatable :: mpi_rows_collected(:,:), ia_temp_vectors(:), ja_temp_vectors(:)
@@ -731,6 +732,7 @@ module heisenberg
         size_val = no_of_ja_val_el
         size_ja = no_of_ja_val_el
         size_ia = mpi_rows_collected(local_process_ID + 1,1) + 1
+        number_of_rows_local_MPI = mpi_rows_collected(local_process_ID + 1, 1)
         
         deallocate (ia_temp_vectors, ja_temp_vectors, val_temp_vectors )
         deallocate (mpi_rows_collected)
@@ -746,16 +748,35 @@ module heisenberg
         
         end subroutine Hamiltonian_MPI_OpenMP_pfeast
 
-        subroutine Hamiltonian_pfeast_diagonalisation(size_ia ,size_ja, size_val)
+        subroutine Hamiltonian_pfeast_diagonalisation(N_spin, Sz_subspace_size, size_ia, size_ja, size_val, number_of_rows_local_MPI)
             use omp_lib
             implicit none
             include 'mpif.h'
-            integer(8), intent(in) :: size_val, size_ja, size_ia
-            
+            integer(8), intent(in) :: N_spin, Sz_subspace_size, number_of_rows_local_MPI, size_val, size_ja, size_ia
+            integer :: ind, i
+            integer, allocatable :: ia_local(:), ja_local(:) !shouldn't be int(8)? 
+            double precision, allocatable :: val_arr_local(:)
+            integer :: ierror, local_process_ID, size_of_cluster
+            double precision :: norm 
+            double precision, allocatable :: x(:,:)
+            integer :: fpm(128)
+            double precision :: emin, emax
+            integer :: m0
+            double precision :: epsout
+            integer :: loop
+            double precision, allocatable :: e(:)
+            integer :: m
+            double precision, allocatable :: res(:)
+            CHARACTER*1 :: jobz, range, uplo
+            integer :: il, iu, ldz, liwork, lwork, info, m_eig, n
+            character(len=32) :: loc_id_info
+
             write(*,*) '---------- START Hamiltonian_pfeast_diagonalisation ----------'
             write(*,*) ' '
 
+            write(*,*) 'Start reading ia, ja and val_arr from the files'
             write(*,*) 'size_ia, size_ja, size_val', size_ia, size_ja, size_val
+            write(*,*) ' '
 
             if (size_val .NE. size_ja) then
                 write(*,*) 'ja vector and val vector are not the same size'
@@ -764,6 +785,176 @@ module heisenberg
 
             !here read the ia, ja and val_arr from the files and start pfeast
 
+            call MPI_COMM_RANK(MPI_COMM_WORLD, local_process_ID, ierror) !Determines the rank of the calling process in the communicator.
+            if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_RANK ', ierror
+            write(*,*) 'local_process_ID (rank) is = ', local_process_ID
+            
+            write (loc_id_info,'(i0)') local_process_ID
+            loc_id_info = adjustl(loc_id_info)
+
+            !ia vector reading
+            open (unit=15, file='ia_local_'//trim(loc_id_info)//'.dat', recl=512, status='old', action='read', iostat=ierror)
+            if (ierror /= 0) then
+                print *, "Error: Unable to open file ", 'ia_local_'//trim(loc_id_info)//'.dat'
+                stop
+            end if
+
+            !ja vector reading
+            open (unit=16, file='ja_local_'//trim(loc_id_info)//'.dat', recl=512, status='old', action='read', iostat=ierror)
+            if (ierror /= 0) then
+                print *, "Error: Unable to open file ", 'ja_local_'//trim(loc_id_info)//'.dat'
+                stop
+            end if
+
+            ! val_arr vector reading
+            open (unit=17, file='val_local_'//trim(loc_id_info)//'.dat', recl=512, status='old', action='read', iostat=ierror)
+            if (ierror /= 0) then
+                print *, "Error: Unable to open file ", 'val_local_'//trim(loc_id_info)//'.dat'
+                stop
+            end if
+
+            !read ia, ja and val_arr from the files
+            allocate(ia_local(size_ia), ja_local(size_ja), val_arr_local(size_val))
+            
+            ! Read data into the vector
+            do ind = 1, size_ia
+                read(15, *, iostat=ierror) ia_local(ind)
+                if (ierror /= 0) then
+                    print *, "Error: Failed to read data from file"
+                    stop
+                end if
+            end do
+
+            do ind = 1, size_ja
+                read(16, *, iostat=ierror) ja_local(ind)
+                if (ierror /= 0) then
+                    print *, "Error: Failed to read data from file"
+                    stop
+                end if
+            end do
+
+            do ind = 1, size_val
+                read(17, *, iostat=ierror) val_arr_local(ind)
+                if (ierror /= 0) then
+                    print *, "Error: Failed to read data from file"
+                    stop
+                end if
+            end do
+
+            !check if size of the vectors matches expected sizes
+            if (size(ia_local) /= size_ia) then
+                write(*,*) 'Error: Size of ia_local does not match expected size'
+                error stop
+            end if
+            if (size(ja_local) /= size_ja) then
+                write(*,*) 'Error: Size of ja_local does not match expected size'
+                error stop
+            end if
+            if (size(val_arr_local) /= size_val) then
+                write(*,*) 'Error: Size of val_arr_local does not match expected size'
+                error stop
+            end if
+
+            write(*,*) 'END ia_local, ja_local and val_arr_local read from the files'
+            write(*,*) ' '
+
+            !barrier to make sure all processes are ready with ia, ja and val_arr
+            write(*,*) 'List of procs before MPI barrier - finished reading ia, ja, val flag', local_process_ID
+            call MPI_BARRIER(MPI_COMM_WORLD, ierror) !synchronize all processes
+            if (ierror .NE. 0) write(*,*) 'error after MPI_BARRIER ', ierror
+            write(*,*) 'List of procs after MPI barrier - finished reading ia, ja, val flag', local_process_ID
+
+            !start feast part, initialize MPI and FEAST
+            call MPI_COMM_SIZE(MPI_COMM_WORLD, size_of_cluster, ierror) !size_of_cluster is the number of nodes!
+            if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_RANK ', ierror
+            write(*,*) 'local_process_ID (rank) is = ', local_process_ID
+
+            call pfeastinit(fpm, MPI_COMM_WORLD, size_of_cluster)  ! function specifying default parameters fpm of FEAST algorithm
+    
+            !MPI comunicator scheduling: 
+            call MPI_COMM_RANK(fpm(49), local_process_ID, ierror)
+            if (ierror .NE. 0) write(*,*) 'error after MPI_COMM_RANK ', ierror
+            write(*,*) 'local_process_ID (rank) is = ', local_process_ID
+
+
+            !int 64 has 64 bits
+            !double precision has 64 bit
+
+            !n=n     ! Sets the size of the problem
+            !a=non_zero_array     ! Array containing the nonzero elements of the upper triangular part of the matrix A
+        
+            fpm(1) = 1
+            fpm(2) = 12 ! number of countour points for pfeast: Ideally, size_of_cluster should be a multiple of a number of contour points (if it is equal to the number of contour points, then L2 is optimally used). Furthermore, L3 can also be threaded (MPI calling OpenMP on each local distributed system), make sure that your number of selected threads <omp> times nL1 does not exceed the number of available physical cores of your cluster. 
+            fpm(3) = 12 !eps 10^-fpm(3)
+            fpm(4) = 20 ! max number of feast loops
+            fpm(5) = 0 !initial subspace
+            fpm(6) = 0! stopping criterion
+            fpm(7) = 5 !Error trace sigle prec stop crit
+            fpm(14) = 0 ! standard use of feast
+            fpm(27) = 1 !check input matrices
+            fpm(28) = 1 !check if B is positive definite?
+            
+            uplo='U' ! If uplo = 'U', a stores the upper triangular parts of A.
+            n = Sz_subspace_size ! Sets the size of the problem
+            !Intervals for 10 lowest eigenstates for 1D chain of H_XXX with NN hoping
+            emin = -0.4465d0 * N_spin + 0.1801d0
+            !emax = -0.49773d0 * N_spin + 2.10035d0 !it might be more adjusted to the possible number of eigenvalues to be found
+            emax = -0.49773d0 * N_spin + 2.10030d0
+            
+            if (local_process_ID == 0) then
+                write(*,*) "Calculated lower bound: ", emin
+                write(*,*) "Calculated upper bound: ", emax
+            end if 
+
+            m0 = 20 !Sz_subspace_size !On entry, specifies the initial guess for subspace dimension to be used, 0 < m0≤n.
+            !Set m0 ≥ m where m is the total number of eigenvalues located in the interval [emin, emax].
+            !If the initial guess is wrong, Extended Eigensolver routines return info=3.
+
+            allocate( x(number_of_rows_local_MPI, m0), e(m0), res(m0) )
+            !write(*,*) 'Memory study 4: n,m0: ', n, m0
+            !write(*,*) 'Memory study 4: x: ', kind(x(1,1)) * size(x) , 'bytes',  kind(x(1,1)) * size(x)/1024.0/1024.0, 'MB'
+            !write(*,*) 'Memory study 4: e: ', kind(e(1)) * size(e) , 'bytes',  kind(e(1)) * size(e)/1024.0/1024.0, 'MB'
+            !write(*,*) 'Memory study 4: res: ', kind(res(1)) * size(res) , 'bytes',  kind(res(1)) * size(res)/1024.0/1024.0, 'MB'
+
+            write(*,*) 'List of procs before MPI barrier - just before PFEAST flag', local_process_ID
+            call MPI_BARRIER(MPI_COMM_WORLD, ierror) !synchronize all processes
+            if (ierror .NE. 0) write(*,*) 'error after MPI_BARRIER ', ierror
+            write(*,*) 'List of procs after MPI barrier - just before PFEAST flag', local_process_ID
+
+            write(*,*) 'Before dfeast_scsrev... '
+            call pdfeast_scsrev(uplo, number_of_rows_local_MPI, val_arr_local, ia_local, ja_local, fpm, epsout, loop, emin, emax, m0, e, x, m, res, info)
+            write(*,*) 'eps_out= ', epsout
+            write(*,*) 'loop= ', loop
+            write(*,*) ' dfeast_scsrev info=', info
+            write(*,*) 'After  dfeast_scsrev... '
+
+            if (info /= 0) then
+                write(*,*) 'problem with  dfeast_scsrev, info=', info
+            end if
+
+            !saving eigenvalues per process
+            open (unit=18, file='eigenvalues_local_'//trim(loc_id_info)//'.dat', recl=512, status='unknown', action='write', iostat=ierror)
+            if (ierror /= 0) then
+                print *, "Error: Unable to open file ", 'eigenvalues_local_'//trim(loc_id_info)//'.dat'
+                stop
+            end if
+
+            write(*,*) 'Process ', local_process_ID, 'pdfeast_scsrev eigenvalues found= ', m
+
+            !save to file done by single node
+            do i=1, m
+                write(18,*) e(i)!, x(:,i), res(i)
+                print *, "Eigenvalue", i
+                print *, i, 'E = ', e(i), 'Res = ',  res(i), 'node: ', local_process_ID !'X = ', x(:,i),
+            end do
+
+            write(*,*) 'deallocation ia, ja, val_arr'
+            deallocate(ia_local, ja_local, val_arr_local)
+
+            close(15)
+            close(16)
+            close(17)
+            close(18)
             write(*,*) '---------- END Hamiltonian_pfeast_diagonalisation ----------'
             write(*,*) ' '
         
